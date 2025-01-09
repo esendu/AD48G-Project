@@ -1,0 +1,878 @@
+---
+title: "Untitled"
+author: "Esen Duman"
+date: "2025-01-09"
+output: html_document
+---
+
+Install before rendering:
+install.packages(c("httr", "zoo", "readr", "here", "renv", "data.table", "tidyverse", "ggplot2", "plotly", "dplyr", "stringr", "readxl","maps" ))
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,      # Suppress warnings
+  message = FALSE,      # Suppress messages
+  results = "hide",     # Suppress textual results in code chunks (optional)
+  fig.path = "figures/" # Save figures in the "figures" folder
+)
+library(data.table)
+library(tidyverse)
+library(plotly)
+library(dplyr)
+library(stringr)
+library(httr)
+library(here)
+library(readr)
+library(tidyr)
+library(zoo)
+library(ggplot2)
+```
+
+
+```{r}
+# Define the URL
+url_hdi <- "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"
+
+# Define the local file path
+file_path_hdi <- "data/hdi_time_series.csv"
+
+# Create the 'data' directory if it doesn't exist
+dir.create("data", showWarnings = FALSE)
+
+# Download the file
+download.file(url_hdi, destfile = file_path_hdi, mode = "wb")
+
+# Load the dataset into R
+hdi <- fread(file_path_hdi, encoding = "UTF-8")
+
+# Subset columns that start with 'hdi_' followed by a number
+hdi_columns <- grep("^hdi_\\d+", colnames(hdi), value = TRUE)
+
+# Create a new dataset with the selected columns and additional identifier columns
+hdi <- hdi[, c("country", "hdicode", hdi_columns), with = FALSE]
+
+# Identify only the columns starting with "hdi_" and followed by a number
+hdi_columns <- grep("^hdi_\\d+", colnames(hdi), value = TRUE)
+
+# Melt the dataset into long format, keeping only the valid hdi columns
+hdi_long <- melt(
+  hdi,
+  id.vars = c("country", "hdicode"),    # Columns to keep as identifiers
+  measure.vars = hdi_columns,                  # Valid HDI columns
+  variable.name = "Year",                      # New column name for years
+  value.name = "HDI"                           # New column name for HDI values
+)
+
+# Clean the Year column (remove 'hdi_' prefix)
+hdi_long[, Year := as.numeric(gsub("hdi_", "", Year))]
+
+colnames(hdi_long)[colnames(hdi_long) == "country"] <- "Country Name"
+
+head(hdi_long)
+
+hdicode_group <- hdi_long[, .(
+  Number_of_Countries = uniqueN(`Country Name`)  # Count unique countries
+), by = hdicode]
+
+# View the grouped dataset
+print(hdicode_group)
+```
+
+Using the HDI data, specifically the `hdiscore` column, we are creating four different categories of countries based on their HDI score levels. The countries in each category are selected randomly and will be used for further analysis and visualization. 
+
+```{r}
+set.seed(207)
+low <- hdi_long[hdicode == "Low", sample(unique(`Country Name`), 5)]
+
+set.seed(208)
+medium <- hdi_long[hdicode == "Medium", sample(unique(`Country Name`), 5)]
+
+set.seed(207)
+high <- hdi_long[hdicode == "High", sample(unique(`Country Name`), 5)]
+
+set.seed(207)
+very_high <- hdi_long[hdicode == "Very High", sample(unique(`Country Name`), 5)]
+
+```
+
+
+```{r}
+# Define the World Bank API URL
+url_LE <- "https://api.worldbank.org/v2/en/indicator/SP.DYN.LE00.IN?downloadformat=csv"
+
+# Define the local path to save the file
+output_zip_LE <- here("data", "life_expectancy.zip")
+
+# Create the data directory if it doesn't exist
+dir.create("data", showWarnings = FALSE)
+
+# Download the zip file
+GET(url_LE, write_disk(output_zip_LE, overwrite = TRUE))
+
+# Unzip the downloaded file
+unzip(output_zip_LE, exdir = here("data"))
+
+# Reload the file with explicit settings
+file_path_LE<- "data/API_SP.DYN.LE00.IN_DS2_en_csv_v2_87.csv"
+life_expectancy_data_raw <- data.table::fread(file_path_LE, encoding = "UTF-8")
+
+# Extract the first row as a character vector for column names
+new_colnames <- as.character(unlist(life_expectancy_data_raw[1, ]))
+
+# Assign the new column names
+setnames(life_expectancy_data_raw, new_colnames)
+
+# Remove the first row since it's now the column names
+life_expectancy_data_raw <- life_expectancy_data_raw[-1, ]
+
+# Clean the column names (remove '.00000')
+setnames(life_expectancy_data_raw, gsub("\\.00000$", "", colnames(life_expectancy_data_raw)))
+
+# Check the updated data
+head(life_expectancy_data_raw)
+
+life_expectancy <- life_expectancy_data_raw[,-c(2,3,4,68,69)]
+head(life_expectancy)
+
+# Reshape the data to long format
+tidy_data <- life_expectancy %>%
+  pivot_longer(
+    cols = starts_with("19") | starts_with("20"), # Select year columns
+    names_to = "Year",                           # Column for years
+    values_to = "LifeExpectancy"                 # Column for life expectancy values
+  ) %>%
+  mutate(Year = as.integer(Year))               # Convert year to integer
+
+# View the tidy data
+head(tidy_data)
+```
+```{r}
+ggplot(tidy_data, aes(x = Year, y = LifeExpectancy, color = LifeExpectancy, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+
+# Filter data for the selected countries in each group
+selected_countries <- tidy_data %>%
+  filter(
+    `Country Name` %in% low | 
+    `Country Name` %in% medium | 
+    `Country Name` %in% high | 
+    `Country Name` %in% very_high
+  ) %>%
+  mutate(
+    HDI_Group = case_when(
+      `Country Name` %in% low ~ "Low",
+      `Country Name` %in% medium ~ "Medium",
+      `Country Name` %in% high ~ "High",
+      `Country Name` %in% very_high ~ "Very High"
+    )
+  )
+
+# Find the last year for labeling
+label_data <- selected_countries %>%
+  group_by(`Country Name`, HDI_Group) %>%
+  filter(Year == max(Year))
+
+# Plot
+ggplot(selected_countries, aes(x = Year, y = LifeExpectancy, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "Life Expectancy Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Life Expectancy",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none",  # Remove legend as labels are on the plot
+    panel.grid.minor = element_blank()
+  )
+
+```
+
+
+```{r}
+# Ensure data is ordered by Country and Year
+tidy_data <- tidy_data %>% arrange(`Country Name`, Year)
+
+# Function to create interactive plot for a group of countries
+create_interactive_plot <- function(data, group, title) {
+  filtered_data <- data %>% filter(`Country Name` %in% group)
+
+  plot <- ggplot(filtered_data, aes(
+    x = Year, y = LifeExpectancy,
+    color = `Country Name`,  # Use country names for distinct colors
+    group = `Country Name`,  # Ensure proper grouping for lines
+    text = paste("Country: ", `Country Name`, "<br>",
+                 "Year: ", Year, "<br>",
+                 "Life Expectancy: ", round(LifeExpectancy, 2))
+  )) +
+    geom_line(size = 0.5, alpha = 0.8) +  # Ensure proper line plotting
+    theme_minimal() +
+    scale_color_viridis_d() +  # Use discrete viridis colors for countries
+    labs(
+      title = title,
+      x = "Year",
+      y = "Life Expectancy (Years)"
+    )
+
+  ggplotly(plot, tooltip = "text")
+}
+
+# Create and print interactive plots for each group
+interactive_low <- create_interactive_plot(
+  tidy_data, low, "Life Expectancy Over Time in Countries with Low HDI Scores"
+)
+interactive_low
+
+interactive_high <- create_interactive_plot(
+  tidy_data, high, "Life Expectancy Over Time in Countries with High HDI Scores"
+)
+interactive_high
+
+interactive_medium <- create_interactive_plot(
+  tidy_data, medium, "Life Expectancy Over Time in Countries with Medium HDI Scores"
+)
+interactive_medium
+
+interactive_very_high<- create_interactive_plot(
+  tidy_data, very_high, "Life Expectancy Over Time in Countries with Very High HDI Scores"
+)
+interactive_very_high
+```
+
+```{r}
+# Load necessary libraries
+library(httr)  # For downloading files
+library(zip)   # For handling ZIP files (optional, built-in utils can also be used)
+
+# Define the URL and output file path
+url_ee <- "https://extdataportal.worldbank.org/content/dam/sites/data/gender-data/data/data-gen/zip/indicator/expected-years-of-schooling.zip"
+output_zip_ee <- "expected_years_of_schooling.zip"
+output_dir_ee <- "expected_years_of_schooling"
+
+# Step 1: Download the file
+download.file(url_ee, output_zip_ee, mode = "wb")
+
+# Step 2: Unzip the downloaded file
+if (!dir.exists(output_dir_ee)) {
+  dir.create(output_dir_ee)
+}
+unzip(output_zip_ee, exdir = output_dir_ee)
+
+# Step 3: List extracted files
+extracted_files <- list.files(output_dir_ee, full.names = TRUE)
+print(extracted_files)
+
+# Optional: Load the data (assuming it's in CSV format; adjust as needed)
+expected_years_of_schooling_raw<- read.csv("expected_years_of_schooling/Expected years of schooling.csv")
+head(expected_years_of_schooling_raw)
+
+expected_years_of_schooling <- expected_years_of_schooling_raw[,-c(1,2,4)]
+head(expected_years_of_schooling)
+```
+
+```{r}
+
+fill_na_with_previous <- function(x) {
+  # Ensure the column is not a factor (convert to character or numeric)
+  if (is.factor(x)) x <- as.character(x)
+  return(na.locf(x, na.rm = FALSE, fromLast = FALSE))
+}
+
+# Apply the function to each column in the dataset
+# Use mutate(across()) for all columns or specify columns explicitly
+library(zoo) # for na.locf()
+expected_years_of_schooling <- expected_years_of_schooling %>%
+  mutate(across(everything(), ~ na.locf(., na.rm = FALSE)))
+
+expected_years_of_schooling_total<- expected_years_of_schooling %>% filter(Disaggregation == "total")
+expected_years_of_schooling_total[["Year"]] <- as.numeric(as.character(expected_years_of_schooling_total[["Year"]]))
+colnames(expected_years_of_schooling_total)[colnames(expected_years_of_schooling_total) == "Country.Name"] <- "Country Name"
+
+head(expected_years_of_schooling_total)
+
+
+```
+
+```{r}
+ggplot(expected_years_of_schooling_total, aes(x = Year, y = Value, color = Value, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+```{r}
+# Filter data for the selected countries in each group
+selected_countries <- expected_years_of_schooling_total %>%
+  filter(
+    `Country Name` %in% low | 
+    `Country Name` %in% medium | 
+    `Country Name` %in% high | 
+    `Country Name` %in% very_high
+  ) %>%
+  mutate(
+    HDI_Group = case_when(
+      `Country Name` %in% low ~ "Low",
+      `Country Name` %in% medium ~ "Medium",
+      `Country Name` %in% high ~ "High",
+      `Country Name` %in% very_high ~ "Very High"
+    )
+  )
+
+# Find the last year for labeling
+label_data <- selected_countries %>%
+  group_by(`Country Name`, HDI_Group) %>%
+  filter(Year == max(Year))
+
+# Plot
+ggplot(selected_countries, aes(x = Year, y = Value, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "Expected Years of Schooling Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Average Years of Schooling",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none",  # Remove legend as labels are on the plot
+    panel.grid.minor = element_blank()
+  )
+
+
+```
+
+```{r}
+# Define the World Bank API URL
+url_gni <- "https://api.worldbank.org/v2/en/indicator/NY.GNP.PCAP.CD?downloadformat=csv"
+
+# Define the local path to save the file
+output_zip_gni <- here("data3", "gni.zip")
+
+# Create the data directory if it doesn't exist
+dir.create("data3", showWarnings = FALSE)
+
+# Download the zip file
+GET(url_gni, write_disk(output_zip_gni, overwrite = TRUE))
+
+# Unzip the downloaded file
+unzip(output_zip_gni, exdir = here("data3"))
+
+# Reload the file with explicit settings
+file_path_gni<- "data3/API_NY.GNP.PCAP.CD_DS2_en_csv_v2_4531.csv"
+gni_data_raw <- data.table::fread(file_path_gni, encoding = "UTF-8")
+
+# Extract the first row as a character vector for column names
+new_colnames <- as.character(unlist(gni_data_raw[1, ]))
+
+# Assign the new column names
+setnames(gni_data_raw, new_colnames)
+
+# Remove the first row since it's now the column names
+gni_data_raw <- gni_data_raw[-1, ]
+
+# Clean the column names (remove '.00000')
+setnames(gni_data_raw, gsub("\\.00000$", "", colnames(gni_data_raw)))
+
+# Check the updated data
+head(gni_data_raw)
+
+columns_to_keep <- c(
+  "Country Name",
+  grep("^197[0-9]|^198[0-9]|^199[0-9]|^200[0-9]|^201[0-9]|^202[0-9]$",
+       colnames(gni_data_raw), value = TRUE)
+)
+
+gni_data_filtered <- gni_data_raw[, ..columns_to_keep]
+
+# Transform into long format
+gni_data_long <- melt(
+  gni_data_filtered,
+  id.vars = c("Country Name"),
+  variable.name = "Year",   # Year column will retain exact year values (e.g., 1970, 1971, etc.)
+  value.name = "GNI_Per_Capita"
+)
+
+# Ensure "Year" remains a string and convert it to numeric for further processing
+gni_data_long[, Year := as.numeric(as.character(Year))]
+
+# Check the updated data
+head(gni_data_long)
+
+data.table(gni_data_long)
+```
+
+```{r}
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(ggrepel)
+
+# Define color palettes for each group
+colors_very_high <- brewer.pal(5, "Reds")      # Reds for very high
+colors_high <- brewer.pal(5, "Blues")          # Blues for high
+colors_medium <- brewer.pal(5, "Greens")       # Greens for medium
+colors_low <- brewer.pal(5, "Purples")         # Purples for low
+
+# Assign colors to countries based on their group
+country_colors <- c(
+  setNames(colors_low, low),                   # Map Low group to Purples
+  setNames(colors_medium, medium),             # Map Medium group to Greens
+  setNames(colors_high, high),                 # Map High group to Blues
+  setNames(colors_very_high, very_high)        # Map Very High group to Reds
+)
+
+# Add Group column to gni_data_long based on existing vectors
+gni_data_long <- gni_data_long %>%
+  mutate(
+    Group = case_when(
+      `Country Name` %in% low ~ "Low",
+      `Country Name` %in% medium ~ "Medium",
+      `Country Name` %in% high ~ "High",
+      `Country Name` %in% very_high ~ "Very High",
+      TRUE ~ NA_character_  # Explicitly set NA for unmatched countries
+    )
+  ) %>%
+  filter(!is.na(Group))  # Remove rows with NA in Group
+
+# Find the last year for each country to position labels
+label_data <- gni_data_long %>%
+  group_by(`Country Name`, Group) %>%
+  filter(Year == max(Year))
+
+# Line plot comparing all groups with specific colors
+ggplot(gni_data_long, aes(x = Year, y = GNI_Per_Capita, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.8) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
+  facet_wrap(~ Group, scales = "free_y") +  # Separate facets for each group
+  scale_color_manual(values = country_colors) +  # Apply custom colors
+  theme_minimal() +
+  labs(
+    title = "GNI Per Capita Over Time by Group",
+    x = "Year",
+    y = "GNI Per Capita (USD)"
+  ) +
+  theme(
+    legend.position = "none",  # Remove legend
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30")
+  )
+
+```
+
+```{r}
+# Load necessary library
+library(readxl)
+
+# Define the URL
+url_ME <- "https://ourworldindata.org/grapher/mean-years-of-schooling-long-run.csv?v=1&csvType=full&useColumnShortNames=true"
+
+# Define the file path to save the CSV locally
+file_path_ME <- "mean_years_of_schooling.csv"
+
+# Download the file
+download.file(url_ME, file_path_ME)
+
+# Read the CSV file into R
+mean_schooling_raw <- read.csv(file_path_ME)
+colnames(mean_schooling_raw) <- c("Country Name", "Code", "Year", "MeanYearsOfSchooling")
+
+# Display the first few rows of the dataset
+mean_schooling <- mean_schooling_raw[,-2]
+
+head(mean_schooling)
+```
+
+```{r}
+ggplot(mean_schooling, aes(x = Year, y = MeanYearsOfSchooling, color = MeanYearsOfSchooling, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+```{r}
+# Define the URL
+url_D <- "https://ourworldindata.org/grapher/political-regime.csv?v=1&csvType=full&useColumnShortNames=false"
+
+# Define the file path to save the CSV locally
+file_path_D <- "democracy.csv"
+
+# Download the file
+download.file(url_D, file_path_D)
+
+# Read the CSV file into R
+democracy_raw <- read.csv(file_path_D)
+colnames(democracy_raw) <- c("Country Name", "Code", "Year", "Political.regime")
+
+# Display the first few rows of the dataset
+democracy <- democracy_raw[,-2]
+head(democracy)
+```
+
+```{r}
+# Summarize the data
+aggregated_data <- democracy %>%
+  group_by(Year, Political.regime) %>%
+  summarize(Count = n(), .groups = "drop")
+
+# Create the bar chart
+ggplot(aggregated_data, aes(x = factor(Year), y = Count, fill = factor(Political.regime))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  labs(
+    title = "Number of Countries by Political Regime Over Time",
+    x = "Year",
+    y = "Number of Countries",
+    fill = "Political Regime"
+  )
+```
+```{r}
+# Summarize the data
+aggregated_data <- democracy %>%
+  group_by(Year, Political.regime) %>%
+  summarize(Count = n(), .groups = "drop")
+
+# Create the line graph
+ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime), group = Political.regime)) +
+  geom_line(size = 0.5) +
+  geom_point(size = 0.6) +  # Optional: Add points for emphasis
+  scale_color_viridis_d() +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Number of Countries by Political Regime Over Time",
+    x = "Year",
+    y = "Number of Countries",
+    color = "Political Regime"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for readability
+    legend.position = "right"  # Move the legend to the side
+  )
+
+```
+
+
+```{r}
+library(maps)
+# Define the URL
+url_GI <- "https://ourworldindata.org/grapher/gender-inequality-index-from-the-human-development-report.csv?v=1&csvType=full&useColumnShortNames=false"
+
+# Define the file path to save the CSV locally
+file_path_GI <- "democracy.csv"
+
+# Download the file
+download.file(url_GI, file_path_GI)
+
+# Read the CSV file into R
+gender_inequality_raw <- read.csv(file_path_GI)
+colnames(gender_inequality_raw) <- c("Country Name", "Code", "Year", "Gender.Inequality")
+
+# Display the first few rows of the dataset
+gender_inequality <- gender_inequality_raw[,-2]
+head(gender_inequality)
+```
+
+```{r}
+ggplot(gender_inequality, aes(x = Year, y = Gender.Inequality, color = Gender.Inequality, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+
+```
+
+```{r}
+url_pop <- "https://ourworldindata.org/grapher/population.csv?v=1&csvType=full&useColumnShortNames=true"
+
+file_path_pop <- "population.csv"
+
+download.file(url_pop, file_path_pop)
+
+population_raw <- read.csv(file_path_pop)
+colnames(population_raw) <- c("Country Name", "Code", "Year", "Population")
+
+population <- population_raw[,-2] %>% filter(Year > 1960)
+head(population)
+```
+
+```{r}
+ggplot(population, aes(x = Year, y = Population, color = Population, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+```{r}
+url_fdi <- "https://ourworldindata.org/grapher/foreign-direct-investment-net-inflows-as-share-of-gdp.csv?v=1&csvType=full&useColumnShortNames=false"
+
+file_path_fdi <- "FDI.csv"
+
+download.file(url_fdi, file_path_fdi)
+
+fdi_raw <- read.csv(file_path_fdi)
+colnames(fdi_raw) <- c("Country Name", "Code", "Year", "FDI.inflow")
+
+fdi <- fdi_raw[,-2]
+head(fdi)
+```
+
+```{r}
+ggplot(fdi, aes(x = Year, y = FDI.inflow, color = FDI.inflow, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+
+```{r}
+url_tax <- "https://ourworldindata.org/grapher/tax-revenues-as-a-share-of-gdp-unu-wider.csv?v=1&csvType=full&useColumnShortNames=false"
+
+file_path_tax <- "tax_revenues.csv"
+
+download.file(url_tax, file_path_tax)
+
+tax_revenues_raw <- read.csv(file_path_tax)
+colnames(tax_revenues_raw) <- c("Country Name", "Code", "Year", "Tax_Share")
+
+tax_revenues <- tax_revenues_raw[,-2]
+head(tax_revenues)
+```
+
+```{r}
+ggplot(tax_revenues, aes(x = Year, y = Tax_Share, color = Tax_Share, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+```{r}
+url_EG <- "https://ourworldindata.org/grapher/per-capita-electricity-generation.csv?v=1&csvType=full&useColumnShortNames=true"
+
+file_path_EG <- "electricity_generation.csv"
+
+download.file(url_EG, file_path_EG)
+
+electricity_generation_raw <- read.csv(file_path_EG)
+colnames(electricity_generation_raw) <- c("Country Name", "Code", "Year", "Electricity_Generation")
+
+electricity_generation <- electricity_generation_raw[,-2]
+head(electricity_generation)
+```
+
+```{r}
+ggplot(electricity_generation, aes(x = Year, y = Electricity_Generation, color = Electricity_Generation, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+*Merging All Data
+
+```{r}
+library(data.table)
+
+# Ensure all datasets are data.tables
+tables <- list(
+  electricity_generation,
+  tax_revenues,
+  fdi,
+  population,
+  gender_inequality,
+  democracy,
+  mean_schooling,
+  gni_data_long,
+  expected_years_of_schooling_total,
+  tidy_data,
+  hdi_long
+)
+
+# Merge all tables by Country Name and Year
+
+merged_data <- Reduce(function(x, y) merge(x, y, by = c("Country Name", "Year"), all = TRUE), tables)
+
+merged_data <- subset(merged_data, Year >= 1970)
+
+str(merged_data)
+
+
+```
+```{r}
+
+necessary_columns <- c("Country Name", "Year", "LifeExpectancy", "GNI_Per_Capita", 
+                       "MeanYearsOfSchooling", "Value", "HDI")
+
+# Select only the gerekli columns from merged_data
+model_data <- merged_data %>%
+  select(all_of(necessary_columns))
+
+model <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Value, data=model_data )
+summary(model)
+
+# Specify the columns to check
+columns_to_check <- c("LifeExpectancy", "GNI_Per_Capita", "MeanYearsOfSchooling", "Value", "HDI")
+
+# Identify rows where exactly one column is missing
+rows_with_one_missing <- model_data %>%
+  rowwise() %>%
+  mutate(missing_count = sum(is.na(c_across(all_of(columns_to_check))))) %>%
+  filter(missing_count == 1) %>%
+  ungroup()
+
+# View the filtered dataset
+head(rows_with_one_missing)
+
+# Number of rows with exactly one missing value
+nrow(rows_with_one_missing)
+
+# Regression coefficients from your model
+coefficients <- coef(model)
+```
+```{r}
+# Define a function to predict the missing value or calculate HDI
+predict_or_calculate_hdi <- function(row, coefficients) {
+  intercept <- coefficients["(Intercept)"]
+  
+  # Initialize the prediction with the intercept
+  predicted_value <- intercept
+  
+  # Add contributions from the available independent variables
+  if (!is.na(row$LifeExpectancy)) {
+    predicted_value <- predicted_value + coefficients["LifeExpectancy"] * row$LifeExpectancy
+  }
+  if (!is.na(row$GNI_Per_Capita)) {
+    predicted_value <- predicted_value + coefficients["GNI_Per_Capita"] * row$GNI_Per_Capita
+  }
+  if (!is.na(row$MeanYearsOfSchooling)) {
+    predicted_value <- predicted_value + coefficients["MeanYearsOfSchooling"] * row$MeanYearsOfSchooling
+  }
+  if (!is.na(row$Value)) {
+    predicted_value <- predicted_value + coefficients["Value"] * row$Value
+  }
+  
+  return(predicted_value)
+}
+
+# Apply the function to fill in the missing values and calculate HDI
+completed_rows <- rows_with_one_missing %>%
+  rowwise() %>%
+  mutate(
+    LifeExpectancy = ifelse(
+      is.na(LifeExpectancy),
+      predict_or_calculate_hdi(cur_data(), coefficients),
+      LifeExpectancy
+    ),
+    GNI_Per_Capita = ifelse(
+      is.na(GNI_Per_Capita),
+      predict_or_calculate_hdi(cur_data(), coefficients),
+      GNI_Per_Capita
+    ),
+    MeanYearsOfSchooling = ifelse(
+      is.na(MeanYearsOfSchooling),
+      predict_or_calculate_hdi(cur_data(), coefficients),
+      MeanYearsOfSchooling
+    ),
+    Value = ifelse(
+      is.na(Value),
+      predict_or_calculate_hdi(cur_data(), coefficients),
+      Value
+    ),
+    # Calculate HDI for all rows using the function
+    HDI = ifelse(
+      is.na(HDI),
+      predict_or_calculate_hdi(cur_data(), coefficients),
+      HDI
+    )
+  ) %>%
+  ungroup()
+
+# View the updated completed_rows dataset
+head(completed_rows)
+```
+
+```{r}
+library(dplyr)
+
+# Merge predicted values back into model_data
+model_data_with_predictions <- model_data %>%
+  left_join(
+    completed_rows %>%
+      select(`Country Name`, Year, LifeExpectancy, GNI_Per_Capita, MeanYearsOfSchooling, Value, HDI),
+    by = c("Country Name", "Year"),
+    suffix = c("_original", "_predicted")
+  ) %>%
+  mutate(
+    # Replace missing values in the original dataset with predicted values
+    LifeExpectancy = ifelse(is.na(LifeExpectancy_original), LifeExpectancy_predicted, LifeExpectancy_original),
+    GNI_Per_Capita = ifelse(is.na(GNI_Per_Capita_original), GNI_Per_Capita_predicted, GNI_Per_Capita_original),
+    MeanYearsOfSchooling = ifelse(is.na(MeanYearsOfSchooling_original), MeanYearsOfSchooling_predicted, MeanYearsOfSchooling_original),
+    Value = ifelse(is.na(Value_original), Value_predicted, Value_original),
+    HDI = ifelse(is.na(HDI_original), HDI_predicted, HDI_original)
+  ) %>%
+  # Drop intermediate columns for clarity
+  select(-ends_with("_original"), -ends_with("_predicted"))
+
+
+# Check the structure to confirm integration
+str(model_data_with_predictions)
+
+model2 <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Value, data=model_data_with_predictions )
+summary(model2)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Calculate the number of cells filled for each column
+filled_counts <- rows_with_one_missing %>%
+  summarise(
+    LifeExpectancy = sum(is.na(LifeExpectancy) & !is.na(completed_rows$LifeExpectancy)),
+    GNI_Per_Capita = sum(is.na(GNI_Per_Capita) & !is.na(completed_rows$GNI_Per_Capita)),
+    MeanYearsOfSchooling = sum(is.na(MeanYearsOfSchooling) & !is.na(completed_rows$MeanYearsOfSchooling)),
+    Value = sum(is.na(Value) & !is.na(completed_rows$Value)),
+    HDI = sum(is.na(HDI) & !is.na(completed_rows$HDI))
+  ) %>%
+  pivot_longer(cols = everything(), names_to = "Column", values_to = "FilledCount")
+
+# Create a bar plot
+ggplot(filled_counts, aes(x = Column, y = FilledCount, fill = Column)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Number of Cells Filled for Each Column",
+    x = "Column",
+    y = "Number of Cells Filled",
+    fill = "Column"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none"
+  )
+
+
+```
+
