@@ -320,6 +320,7 @@ expected_years_of_schooling <- expected_years_of_schooling %>%
 
 expected_years_of_schooling_total<- expected_years_of_schooling %>% filter(Disaggregation == "total")
 expected_years_of_schooling_total[["Year"]] <- as.numeric(as.character(expected_years_of_schooling_total[["Year"]]))
+colnames(expected_years_of_schooling_total)[colnames(expected_years_of_schooling_total) == "Value"] <- "Expected_Schooling"
 colnames(expected_years_of_schooling_total)[colnames(expected_years_of_schooling_total) == "Country.Name"] <- "Country Name"
 
 head(expected_years_of_schooling_total)
@@ -328,7 +329,7 @@ head(expected_years_of_schooling_total)
 ```
 
 ```{r}
-ggplot(expected_years_of_schooling_total, aes(x = Year, y = Value, color = Value, group = `Country Name`)) +
+ggplot(expected_years_of_schooling_total, aes(x = Year, y = Expected_Schooling, color = Expected_Schooling, group = `Country Name`)) +
   geom_line(alpha = 0.7) +
   scale_color_viridis_c() +
   theme_minimal()
@@ -357,7 +358,7 @@ label_data <- selected_countries %>%
   filter(Year == max(Year))
 
 # Plot
-ggplot(selected_countries, aes(x = Year, y = Value, color = `Country Name`, group = `Country Name`)) +
+ggplot(selected_countries, aes(x = Year, y = Expected_Schooling, color = `Country Name`, group = `Country Name`)) +
   geom_line(size = 0.5) +
   geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
   facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
@@ -740,17 +741,17 @@ str(merged_data)
 ```{r}
 
 necessary_columns <- c("Country Name", "Year", "LifeExpectancy", "GNI_Per_Capita", 
-                       "MeanYearsOfSchooling", "Value", "HDI")
+                       "MeanYearsOfSchooling", "Expected_Schooling", "HDI")
 
 # Select only the gerekli columns from merged_data
 model_data <- merged_data %>%
   select(all_of(necessary_columns))
 
-model <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Value, data=model_data )
+model <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Expected_Schooling, data=model_data )
 summary(model)
 
 # Specify the columns to check
-columns_to_check <- c("LifeExpectancy", "GNI_Per_Capita", "MeanYearsOfSchooling", "Value", "HDI")
+columns_to_check <- c("LifeExpectancy", "GNI_Per_Capita", "MeanYearsOfSchooling", "Expected_Schooling", "HDI")
 
 # Identify rows where exactly one column is missing
 rows_with_one_missing <- model_data %>%
@@ -786,8 +787,8 @@ predict_or_calculate_hdi <- function(row, coefficients) {
   if (!is.na(row$MeanYearsOfSchooling)) {
     predicted_value <- predicted_value + coefficients["MeanYearsOfSchooling"] * row$MeanYearsOfSchooling
   }
-  if (!is.na(row$Value)) {
-    predicted_value <- predicted_value + coefficients["Value"] * row$Value
+  if (!is.na(row$Expected_Schooling)) {
+    predicted_value <- predicted_value + coefficients["Expected_Schooling"] * row$Expected_Schooling
   }
   
   return(predicted_value)
@@ -812,10 +813,10 @@ completed_rows <- rows_with_one_missing %>%
       predict_or_calculate_hdi(cur_data(), coefficients),
       MeanYearsOfSchooling
     ),
-    Value = ifelse(
-      is.na(Value),
+    Expected_Schooling = ifelse(
+      is.na(Expected_Schooling),
       predict_or_calculate_hdi(cur_data(), coefficients),
-      Value
+      Expected_Schooling
     ),
     # Calculate HDI for all rows using the function
     HDI = ifelse(
@@ -837,7 +838,7 @@ library(dplyr)
 model_data_with_predictions <- model_data %>%
   left_join(
     completed_rows %>%
-      select(`Country Name`, Year, LifeExpectancy, GNI_Per_Capita, MeanYearsOfSchooling, Value, HDI),
+      select(`Country Name`, Year, LifeExpectancy, GNI_Per_Capita, MeanYearsOfSchooling, Expected_Schooling, HDI),
     by = c("Country Name", "Year"),
     suffix = c("_original", "_predicted")
   ) %>%
@@ -846,7 +847,7 @@ model_data_with_predictions <- model_data %>%
     LifeExpectancy = ifelse(is.na(LifeExpectancy_original), LifeExpectancy_predicted, LifeExpectancy_original),
     GNI_Per_Capita = ifelse(is.na(GNI_Per_Capita_original), GNI_Per_Capita_predicted, GNI_Per_Capita_original),
     MeanYearsOfSchooling = ifelse(is.na(MeanYearsOfSchooling_original), MeanYearsOfSchooling_predicted, MeanYearsOfSchooling_original),
-    Value = ifelse(is.na(Value_original), Value_predicted, Value_original),
+    Expected_Schooling = ifelse(is.na(Expected_Schooling_original), Expected_Schooling_predicted, Expected_Schooling_original),
     HDI = ifelse(is.na(HDI_original), HDI_predicted, HDI_original)
   ) %>%
   # Drop intermediate columns for clarity
@@ -856,7 +857,7 @@ model_data_with_predictions <- model_data %>%
 # Check the structure to confirm integration
 str(model_data_with_predictions)
 
-model2 <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Value, data=model_data_with_predictions )
+model2 <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Expected_Schooling, data=model_data_with_predictions )
 summary(model2)
 ```
 
@@ -870,7 +871,7 @@ filled_counts <- rows_with_one_missing %>%
     LifeExpectancy = sum(is.na(LifeExpectancy) & !is.na(completed_rows$LifeExpectancy)),
     GNI_Per_Capita = sum(is.na(GNI_Per_Capita) & !is.na(completed_rows$GNI_Per_Capita)),
     MeanYearsOfSchooling = sum(is.na(MeanYearsOfSchooling) & !is.na(completed_rows$MeanYearsOfSchooling)),
-    Value = sum(is.na(Value) & !is.na(completed_rows$Value)),
+    Expected_Schooling = sum(is.na(Expected_Schooling) & !is.na(completed_rows$Expected_Schooling)),
     HDI = sum(is.na(HDI) & !is.na(completed_rows$HDI))
   ) %>%
   pivot_longer(cols = everything(), names_to = "Column", values_to = "FilledCount")
@@ -893,17 +894,6 @@ ggplot(filled_counts, aes(x = Column, y = FilledCount, fill = Column)) +
 ```
 
 ```{r}
-
-# Install required packages
-install.packages("rpart")
-install.packages("rpart.plot")
-install.packages("dplyr")
-
-# Load libraries
-
-```
-
-```{r}
 set.seed(123)  # For reproducibility
 split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
 train_data <- merged_data[split, ]
@@ -911,7 +901,8 @@ test_data <- merged_data[-split, ]
 ```
 
 ```{r}
-# Train a regression decision tree
+library(rpart.plot)
+library(rpart)# Train a regression decision tree
 tree_model <- rpart(
   GNI_Per_Capita ~  Tax_Share + Population + 
     Gender.Inequality + Political.regime + MeanYearsOfSchooling +
@@ -1014,6 +1005,8 @@ library(visNetwork)
 
 ```{r}
 # Customize colors for the output (leaf) nodes
+install.packages("sparkline")
+library(sparkline)
 visNetwork::visTree(tree_model_buckets)
 
 ```
@@ -1033,10 +1026,6 @@ print(confusion_matrix)
 ### Without Electricity Generation 
 
 ```{r}
-# Load required packages
-library(rpart)
-library(rpart.plot)
-
 # Train a classification decision tree
 tree_model_buckets_wh_ee <- rpart(
   GNI_Bucket ~ Tax_Share + Population + Gender.Inequality + Political.regime + MeanYearsOfSchooling +
