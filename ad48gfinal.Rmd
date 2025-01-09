@@ -30,7 +30,24 @@ library(ggplot2)
 
 # INTRODUCTION
 
-In this analysis, we aim to explore various socioeconomic indicators such as Human Development Index (HDI), life expectancy, education levels, political regimes, and economic measures like Gross National Income (GNI) per capita. The objective is to clean, merge, and analyze datasets from multiple sources, filling in missing values using regression-based imputation, and derive insights through visualizations and statistical models. (need to add a sentence on decision trees)
+In this analysis, we aim to explore various socioeconomic indicators such as Human Development Index (HDI), life expectancy, education levels, political regimes, and economic measures like Gross National Income (GNI) per capita. The objective is to clean, merge, and analyze datasets from multiple sources, primarily obtained from the World Bank, filling in missing values using regression-based imputation, and derive insights through visualizations and statistical models. Additionally, we utilize decision trees to identify key variables contributing to changes in HDI and other socioeconomic measures. 
+
+#DATA
+
+##1. HDI
+
+####Data Collection
+
+We downloaded the Human Development Index (HDI) dataset from the UNDP website and saved the file locally in a directory called data, before loading the dataset into R using `fread()` from the data.table package. We selected columns that start with hdi_ followed by a year, as our aim was to obtain each country's HDI by year, along with identifier columns and hdiscore column. Then, we transformed the dataset into a long format using the melt() function.
+
+We had to change the format of the table, while keeping country and hdiscore columns, we created two new columns: 
+Year is extracted from the column names and 
+HDI is the HDI score for the corresponding year.
+
+We renamed the country column to Country Name for consistency.
+Lastly, we grouped the data by hdicode in 4 categories: "Low," "Medium," "High," "Very High". We will be using these categories in our further analysis, especially for visualization. 
+
+A summary table showing the number of countries in each hdicode group is displayed in the output.
 
 ```{r}
 # Define the URL
@@ -80,8 +97,6 @@ hdicode_group <- hdi_long[, .(
 # View the grouped dataset
 print(hdicode_group)
 ```
-
-Using the HDI data, specifically the `hdiscore` column, we are creating four different categories of countries based on their HDI score levels. The countries in each category are selected randomly and will be used for further analysis and visualization. 
 
 ```{r}
 set.seed(207)
