@@ -28,6 +28,9 @@ library(zoo)
 library(ggplot2)
 ```
 
+# INTRODUCTION
+
+In this analysis, we aim to explore various socioeconomic indicators such as Human Development Index (HDI), life expectancy, education levels, political regimes, and economic measures like Gross National Income (GNI) per capita. The objective is to clean, merge, and analyze datasets from multiple sources, filling in missing values using regression-based imputation, and derive insights through visualizations and statistical models. (need to add a sentence on decision trees)
 
 ```{r}
 # Define the URL
