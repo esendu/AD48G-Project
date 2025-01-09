@@ -890,7 +890,164 @@ ggplot(filled_counts, aes(x = Column, y = FilledCount, fill = Column)) +
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "none"
   )
+```
 
+```{r}
+
+# Install required packages
+install.packages("rpart")
+install.packages("rpart.plot")
+install.packages("dplyr")
+
+# Load libraries
+
+```
+
+```{r}
+set.seed(123)  # For reproducibility
+split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
+train_data <- merged_data[split, ]
+test_data <- merged_data[-split, ]
+```
+
+```{r}
+# Train a regression decision tree
+tree_model <- rpart(
+  GNI_Per_Capita ~  Tax_Share + Population + 
+    Gender.Inequality + Political.regime + MeanYearsOfSchooling +
+    Expected_Schooling + LifeExpectancy + FDI.inflow,
+  data = train_data,
+  method = "anova", 
+  #control = rpart.control(minsplit = 5)
+)
+
+# Visualize the tree
+rpart.plot(tree_model)
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+# Filter rows where Year >= 2000
+data_after_2000 <- merged_data %>%
+  filter(Year >= 2000)
+
+# View the filtered dataset
+head(data_after_2000)
+```
+
+```{r}
+set.seed(123)  # For reproducibility
+split <- sample(1:nrow(data_after_2000), size = 0.7 * nrow(data_after_2000))
+train_data_after2000 <- data_after_2000[split, ]
+test_data_after2000 <- data_after_2000[-split, ]
+```
+
+```{r}
+# Train a regression decision tree
+tree_model <- rpart(
+  GNI_Per_Capita ~  Tax_Share + Population + 
+    Gender.Inequality + Political.regime + MeanYearsOfSchooling +
+    Expected_Schooling + LifeExpectancy + FDI.inflow,
+  data = train_data_after2000,
+  method = "anova", 
+  #control = rpart.control(minsplit = 5)
+)
+
+# Visualize the tree
+rpart.plot(tree_model)
+```
+
+## Decision Tree with 5 GNI Buckets
+
+
+### With All the Data
+
+
+```{r}
+# Define new buckets
+merged_data$GNI_Bucket <- cut(
+  merged_data$GNI_Per_Capita,
+  breaks = c(-Inf, 500, 2300, 6500, 12000, Inf),  # Adjust these ranges
+  labels = c("Low", "Lower-Middle", "Upper-Middle-Low", "Upper-Middle-High", "High")
+)
+
+# Check distribution in each bucket
+table(merged_data$GNI_Bucket)
+
+```
+
+```{r}
+set.seed(456)  # For reproducibility
+split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
+train_data_buckets <- merged_data[split, ]
+test_data_buckets <- merged_data[-split, ]
+```
+
+```{r}
+# Load required packages
+library(rpart)
+library(rpart.plot)
+
+# Train a classification decision tree
+tree_model_buckets <- rpart(
+  GNI_Bucket ~ Electricity_Generation + Tax_Share + Population +
+    Gender.Inequality + Political.regime + MeanYearsOfSchooling +
+    Expected_Schooling + LifeExpectancy ,
+  data = train_data_buckets,
+  method = "class",  # Classification method
+  control = rpart.control(minsplit = 20, cp = 0.01)  # Adjust parameters as needed
+)
+
+# Visualize the tree
+rpart.plot(tree_model_buckets, type = 3, extra = 104, box.palette = "Blues", shadow.col = "gray")
+
+```
+
+```{r}
+install.packages("visNetwork")
+# Load libraries
+library(visNetwork)
+```
+
+```{r}
+# Customize colors for the output (leaf) nodes
+visNetwork::visTree(tree_model_buckets)
+
+```
+
+```{r}
+# Install and load caret if not already installed
+install.packages("caret")
+library(caret)
+
+# Compute the confusion matrix
+predictions <- predict(tree_model_buckets, test_data_buckets, type = "class")
+confusion_matrix <- caret::confusionMatrix(table(fitted = predictions, actual = test_data_buckets$GNI_Bucket))
+
+# Print the confusion matrix
+print(confusion_matrix)
+```
+### Without Electricity Generation 
+
+```{r}
+# Load required packages
+library(rpart)
+library(rpart.plot)
+
+# Train a classification decision tree
+tree_model_buckets_wh_ee <- rpart(
+  GNI_Bucket ~ Tax_Share + Population + Gender.Inequality + Political.regime + MeanYearsOfSchooling +
+    Expected_Schooling + LifeExpectancy,
+  data = train_data_buckets,
+  method = "class",  # Classification method
+  control = rpart.control(minsplit = 20, cp = 0.01)  # Adjust parameters as needed
+)
+
+# Visualize the tree
+rpart.plot(tree_model_buckets_wh_ee, type = 3, extra = 104, box.palette = "Blues", shadow.col = "gray")
 
 ```
 
