@@ -913,10 +913,10 @@ ggplot(gender_inequality, aes(x = Year, y = Gender.Inequality, color = Gender.In
 ```
 
 ```{r}
-selected_countries_gender <- selected_countries %>%
+selected_countries_1990 <- selected_countries %>%
   filter(Year >= 1990)
 
-ggplot(selected_countries_gender, aes(x = Year, y = Gender.Inequality, color = `Country Name`, group = `Country Name`)) +
+ggplot(selected_countries_1990, aes(x = Year, y = Gender.Inequality, color = `Country Name`, group = `Country Name`)) +
   geom_line(size = 0.5) +
   geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
   facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
@@ -946,7 +946,28 @@ ggplot(population, aes(x = Year, y = Population, color = Population, group = `Co
   scale_color_viridis_c() +
   theme_minimal()
 ```
-
+```{r}
+ggplot(selected_countries, aes(x = Year, y = Population, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "Population Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Population",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none", 
+    panel.grid.minor = element_blank()
+  )
+```
 
 fdi
 ```{r}
@@ -955,7 +976,28 @@ ggplot(fdi, aes(x = Year, y = FDI.inflow, color = FDI.inflow, group = `Country N
   scale_color_viridis_c() +
   theme_minimal()
 ```
-
+```{r}
+ggplot(selected_countries, aes(x = Year, y = FDI.inflow, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "FDI Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Foreign Direct Investment Net Inflows",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none", 
+    panel.grid.minor = element_blank()
+  )
+```
 
 gdp
 ```{r}
@@ -965,12 +1007,61 @@ ggplot(new_data, aes(x = Year, y = GDP_per_capita, color = GDP_per_capita, group
   theme_minimal()
 ```
 
+```{r}
+ggplot(selected_countries_1990, aes(x = Year, y = GDP_per_capita, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "GDP per Capita Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "GDP per Capita",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none", 
+    panel.grid.minor = element_blank()
+  )
+```
+
 tax
 ```{r}
 ggplot(tax_revenues, aes(x = Year, y = Tax_Share, color = Tax_Share, group = `Country Name`)) +
   geom_line(alpha = 0.7) +
   scale_color_viridis_c() +
   theme_minimal()
+```
+```{r}
+
+selected_countries_1980 <- selected_countries %>%
+  filter(Year >= 1980)
+
+ggplot(selected_countries_1980, aes(x = Year, y = Tax_Share, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "Tax Revenue as a Share of GDP Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Tax Share",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none", 
+    panel.grid.minor = element_blank()
+  )
 ```
 
 electricity
@@ -982,7 +1073,29 @@ ggplot(electricity_generation, aes(x = Year, y = Electricity_Generation, color =
   theme_minimal()
 ```
 
+```{r}
 
+ggplot(selected_countries_1990, aes(x = Year, y = Electricity_Generation, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "Electricity Generation Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Electricity Generation",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none", 
+    panel.grid.minor = element_blank()
+  )
+```
 
 
 ```{r}
