@@ -6,7 +6,7 @@ output: html_document
 ---
 
 Install before rendering:
-install.packages(c("httr", "zoo", "readr", "here", "renv", "data.table", "tidyverse", "ggplot2", "plotly", "dplyr", "stringr", "readxl","maps" ))
+install.packages(c("httr", "zoo", "readr", "here", "renv", "data.table", "tidyverse", "ggplot2", "plotly", "dplyr", "stringr", "readxl","visNetwork", "caret" ))
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -26,6 +26,8 @@ library(readr)
 library(tidyr)
 library(zoo)
 library(ggplot2)
+library(visNetwork)
+library(caret)
 ```
 
 # INTRODUCTION
@@ -997,11 +999,7 @@ rpart.plot(tree_model_buckets, type = 3, extra = 104, box.palette = "Blues", sha
 
 ```
 
-```{r}
-install.packages("visNetwork")
-# Load libraries
-library(visNetwork)
-```
+
 
 ```{r}
 # Customize colors for the output (leaf) nodes
@@ -1012,9 +1010,7 @@ visNetwork::visTree(tree_model_buckets)
 ```
 
 ```{r}
-# Install and load caret if not already installed
-install.packages("caret")
-library(caret)
+
 
 # Compute the confusion matrix
 predictions <- predict(tree_model_buckets, test_data_buckets, type = "class")
