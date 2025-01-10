@@ -52,7 +52,6 @@ Lastly, we grouped the data by hdicode in 4 categories: "Low," "Medium," "High,"
 A summary table showing the number of countries in each hdicode group is displayed in the output.
 
 ```{r}
-# Define the URL
 url_hdi <- "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"
 
 file_path_hdi <- "data/hdi_time_series.csv"
@@ -130,29 +129,23 @@ head(tidy_data)
 The dataset for expected years of schooling is sourced from the World Bank's gender data portal. The data is downloaded as a ZIP file and extracted into a local directory. We loaded the extracted CSV file into R and removed unnecessary columns to focus on the relevant data. There were a lot of missing values in the data. So, by using the zoo package, we filled the missing values with the previous non-missing value for consistency. Finally, we filtered the rows where the schooling data is categorized as "total", and renamed the "Value" column to Expected_Schooling for better clarity and consistency among our datasets.
 
 ```{r}
-# Load necessary libraries
-library(httr)  # For downloading files
-library(zip)   # For handling ZIP files (optional, built-in utils can also be used)
+library(httr)  
+library(zip)   
 
-# Define the URL and output file path
 url_ee <- "https://extdataportal.worldbank.org/content/dam/sites/data/gender-data/data/data-gen/zip/indicator/expected-years-of-schooling.zip"
 output_zip_ee <- "expected_years_of_schooling.zip"
 output_dir_ee <- "expected_years_of_schooling"
 
-# Step 1: Download the file
 download.file(url_ee, output_zip_ee, mode = "wb")
 
-# Step 2: Unzip the downloaded file
 if (!dir.exists(output_dir_ee)) {
   dir.create(output_dir_ee)
 }
 unzip(output_zip_ee, exdir = output_dir_ee)
 
-# Step 3: List extracted files
 extracted_files <- list.files(output_dir_ee, full.names = TRUE)
 print(extracted_files)
 
-# Optional: Load the data (assuming it's in CSV format; adjust as needed)
 expected_years_of_schooling_raw<- read.csv("expected_years_of_schooling/Expected years of schooling.csv")
 head(expected_years_of_schooling_raw)
 
@@ -162,13 +155,10 @@ head(expected_years_of_schooling)
 ```{r}
 
 fill_na_with_previous <- function(x) {
-  # Ensure the column is not a factor (convert to character or numeric)
   if (is.factor(x)) x <- as.character(x)
   return(na.locf(x, na.rm = FALSE, fromLast = FALSE))
 }
 
-# Apply the function to each column in the dataset
-# Use mutate(across()) for all columns or specify columns explicitly
 library(zoo) # for na.locf()
 expected_years_of_schooling <- expected_years_of_schooling %>%
   mutate(across(everything(), ~ na.locf(., na.rm = FALSE)))
@@ -188,38 +178,21 @@ head(expected_years_of_schooling_total)
 The Gross National Income (GNI) per capita data is obtained through the World Bank API. We downloaded the data as a CSV file within a ZIP archive. After extraction, we loaded the data into R using fread(). Then, we cleaned and standardized column. We reshaped the dataset into a long format using the melt function, creating a structure where each row represents a country, a year, and its corresponding GNI per capita value to allow for easier integration with other datasets.
 
 ```{r}
-# Define the World Bank API URL
 url_gni <- "https://api.worldbank.org/v2/en/indicator/NY.GNP.PCAP.CD?downloadformat=csv"
-
-# Define the local path to save the file
 output_zip_gni <- here("data3", "gni.zip")
 
-# Create the data directory if it doesn't exist
 dir.create("data3", showWarnings = FALSE)
-
-# Download the zip file
 GET(url_gni, write_disk(output_zip_gni, overwrite = TRUE))
-
-# Unzip the downloaded file
 unzip(output_zip_gni, exdir = here("data3"))
 
-# Reload the file with explicit settings
 file_path_gni<- "data3/API_NY.GNP.PCAP.CD_DS2_en_csv_v2_4531.csv"
 gni_data_raw <- data.table::fread(file_path_gni, encoding = "UTF-8")
 
-# Extract the first row as a character vector for column names
 new_colnames <- as.character(unlist(gni_data_raw[1, ]))
-
-# Assign the new column names
 setnames(gni_data_raw, new_colnames)
-
-# Remove the first row since it's now the column names
 gni_data_raw <- gni_data_raw[-1, ]
-
-# Clean the column names (remove '.00000')
 setnames(gni_data_raw, gsub("\\.00000$", "", colnames(gni_data_raw)))
 
-# Check the updated data
 head(gni_data_raw)
 
 columns_to_keep <- c(
@@ -230,7 +203,6 @@ columns_to_keep <- c(
 
 gni_data_filtered <- gni_data_raw[, ..columns_to_keep]
 
-# Transform into long format
 gni_data_long <- melt(
   gni_data_filtered,
   id.vars = c("Country Name"),
@@ -238,10 +210,8 @@ gni_data_long <- melt(
   value.name = "GNI_Per_Capita"
 )
 
-# Ensure "Year" remains a string and convert it to numeric for further processing
 gni_data_long[, Year := as.numeric(as.character(Year))]
 
-# Check the updated data
 head(gni_data_long)
 
 data.table(gni_data_long)
@@ -252,23 +222,14 @@ data.table(gni_data_long)
 The mean years of schooling dataset is downloaded as a CSV file from Our World in Data. After loading the file into R, we again removed the unnecessary columns to retain only the country name, year, and schooling data.
 
 ```{r}
-# Load necessary library
 library(readxl)
-
-# Define the URL
 url_ME <- "https://ourworldindata.org/grapher/mean-years-of-schooling-long-run.csv?v=1&csvType=full&useColumnShortNames=true"
 
-# Define the file path to save the CSV locally
 file_path_ME <- "mean_years_of_schooling.csv"
-
-# Download the file
 download.file(url_ME, file_path_ME)
-
-# Read the CSV file into R
 mean_schooling_raw <- read.csv(file_path_ME)
 colnames(mean_schooling_raw) <- c("Country Name", "Code", "Year", "MeanYearsOfSchooling")
 
-# Display the first few rows of the dataset
 mean_schooling <- mean_schooling_raw[,-2]
 
 head(mean_schooling)
@@ -280,20 +241,14 @@ The political regime dataset, indicating the type of governance in countries ove
 The classification distinguishes between closed autocracies (score 0), electoral autocracies (score 1), electoral democracies (score 2), and liberal democracies (score 3). In closed autocracies, citizens do not have the right to either choose the chief executive of the government or the legislature through multi-party elections. In electoral autocracies, citizens have the right to choose the chief executive and the legislature through multi-party elections; but they lack some freedoms, such as the freedoms of association or expression, that make the elections meaningful, free, and fair. In electoral democracies, citizens have the right to participate in meaningful, free and fair, and multi-party elections. In liberal demoracies, citizens have further individual and minority rights, are equal before the law, and the actions of the executive are constrained by the legislative and the courts.
 
 ```{r}
-# Define the URL
 url_D <- "https://ourworldindata.org/grapher/political-regime.csv?v=1&csvType=full&useColumnShortNames=false"
 
-# Define the file path to save the CSV locally
 file_path_D <- "democracy.csv"
-
-# Download the file
 download.file(url_D, file_path_D)
 
-# Read the CSV file into R
 democracy_raw <- read.csv(file_path_D)
 colnames(democracy_raw) <- c("Country Name", "Code", "Year", "Political.regime")
 
-# Display the first few rows of the dataset
 democracy <- democracy_raw[,-2]
 head(democracy)
 ```
@@ -303,20 +258,15 @@ head(democracy)
 The gender inequality index dataset is sourced from the UN Human Development Report through Our World in Data. After downloading the CSV file, the data is loaded into R. Similar to other datasets, irrelevant columns are removed, leaving the country name, year, and gender inequality values.
 
 ```{r}
-# Define the URL
 url_GI <- "https://ourworldindata.org/grapher/gender-inequality-index-from-the-human-development-report.csv?v=1&csvType=full&useColumnShortNames=false"
 
-# Define the file path to save the CSV locally
 file_path_GI <- "democracy.csv"
 
-# Download the file
 download.file(url_GI, file_path_GI)
 
-# Read the CSV file into R
 gender_inequality_raw <- read.csv(file_path_GI)
 colnames(gender_inequality_raw) <- c("Country Name", "Code", "Year", "Gender.Inequality")
 
-# Display the first few rows of the dataset
 gender_inequality <- gender_inequality_raw[,-2]
 head(gender_inequality)
 ```
@@ -406,7 +356,6 @@ head(GDPpercapita)
 *Merging All Data
 
 ```{r}
-# Ensure all datasets are data.tables
 tables <- list(
   electricity_generation,
   tax_revenues,
@@ -602,7 +551,6 @@ new_data <- new_data %>%
 
 str(new_data)
 
-# Group by Country Name and Year, and summarize other columns
 new_data <- new_data %>%
   group_by(`Country Name`, Year) %>%
   summarize(across(everything(), ~ mean(., na.rm = TRUE)), .groups = "drop")
@@ -617,7 +565,6 @@ hdicode_group <- hdi_long[, .(
   Number_of_Countries = uniqueN(`Country Name`) 
 ), by = hdicode]
 
-# View the grouped dataset
 print(hdicode_group)
 
 set.seed(213276)
@@ -632,11 +579,9 @@ high <- hdi_long[hdicode == "High", sample(unique(`Country Name`), 5)]
 set.seed(213276)
 very_high <- hdi_long[hdicode == "Very High", sample(unique(`Country Name`), 5)]
 
-# Subset new_data to include only the selected countries
 selected_countries <- new_data %>%
   filter(`Country Name` %in% c(low, medium, high, very_high))
 
-# Add an HDI category column for plotting
 selected_countries <- selected_countries %>%
   mutate(
     HDI_Group = case_when(
@@ -694,10 +639,8 @@ ggplot(selected_countries, aes(x = Year, y = LifeExpectancy, color = `Country Na
 
 
 ```{r}
-# Ensure data is ordered by Country and Year
 new_data <- new_data %>% arrange(`Country Name`, Year)
 
-# Function to create interactive plot for a group of countries
 create_interactive_plot <- function(data, group, title) {
   filtered_data <- data %>% filter(`Country Name` %in% group)
 
@@ -721,7 +664,6 @@ create_interactive_plot <- function(data, group, title) {
   ggplotly(plot, tooltip = "text")
 }
 
-# Create and print interactive plots for each group
 interactive_low <- create_interactive_plot(
   new_data, low, "Life Expectancy Over Time in Countries with Low HDI Scores"
 )
@@ -782,13 +724,11 @@ library(RColorBrewer)
 library(dplyr)
 library(ggrepel)
 
-# Define color palettes for each group
 colors_very_high <- brewer.pal(5, "Reds")      # Reds for very high
 colors_high <- brewer.pal(5, "Blues")          # Blues for high
 colors_medium <- brewer.pal(5, "Greens")       # Greens for medium
 colors_low <- brewer.pal(5, "Purples")         # Purples for low
 
-# Assign colors to countries based on their group
 country_colors <- c(
   setNames(colors_low, low),                   # Map Low group to Purples
   setNames(colors_medium, medium),             # Map Medium group to Greens
@@ -796,7 +736,6 @@ country_colors <- c(
   setNames(colors_very_high, very_high)        # Map Very High group to Reds
 )
 
-# Add Group column to gni_data_long based on existing vectors
 gni_data_long <- gni_data_long %>%
   mutate(
     Group = case_when(
@@ -804,17 +743,15 @@ gni_data_long <- gni_data_long %>%
       `Country Name` %in% medium ~ "Medium",
       `Country Name` %in% high ~ "High",
       `Country Name` %in% very_high ~ "Very High",
-      TRUE ~ NA_character_  # Explicitly set NA for unmatched countries
+      TRUE ~ NA_character_  
     )
   ) %>%
-  filter(!is.na(Group))  # Remove rows with NA in Group
+  filter(!is.na(Group))  
 
-# Find the last year for each country to position labels
 label_data <- gni_data_long %>%
   group_by(`Country Name`, Group) %>%
   filter(Year == max(Year))
 
-# Line plot comparing all groups with specific colors
 ggplot(selected_countries, aes(x = Year, y = GNI_Per_Capita, color = `Country Name`, group = `Country Name`)) +
   geom_line(size = 0.8) +
   geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
@@ -846,12 +783,10 @@ ggplot(mean_schooling, aes(x = Year, y = MeanYearsOfSchooling, color = MeanYears
 democracy plot
 
 ```{r}
-# Summarize the data
 aggregated_data <- democracy %>%
   group_by(Year, Political.regime) %>%
   summarize(Count = n(), .groups = "drop")
 
-# Create the line graph
 ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime), group = Political.regime)) +
   geom_line(size = 0.5) +
   geom_point(size = 0.2) +  # Optional: Add points for emphasis
@@ -1103,7 +1038,6 @@ ggplot(selected_countries_1990, aes(x = Year, y = Electricity_Generation, color 
 necessary_columns <- c("Country Name", "Year", "LifeExpectancy", "GNI_Per_Capita", 
                        "MeanYearsOfSchooling", "Expected_Schooling", "HDI")
 
-# Select only the gerekli columns from merged_data
 model_data <- new_data %>%
   select(all_of(necessary_columns))
 
@@ -1111,34 +1045,24 @@ model <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Expe
 
 summary(model)
 
-# Specify the columns to check
 columns_to_check <- c("LifeExpectancy", "GNI_Per_Capita", "MeanYearsOfSchooling", "Expected_Schooling", "HDI")
 
-# Identify rows where exactly one column is missing
 rows_with_one_missing <- model_data %>%
   rowwise() %>%
   mutate(missing_count = sum(is.na(c_across(all_of(columns_to_check))))) %>%
   filter(missing_count == 1) %>%
   ungroup()
 
-# View the filtered dataset
 head(rows_with_one_missing)
-
-# Number of rows with exactly one missing value
 nrow(rows_with_one_missing)
-
-# Regression coefficients from your model
 coefficients <- coef(model)
 ```
 ```{r}
-# Define a function to predict the missing value or calculate HDI
 predict_or_calculate_hdi <- function(row, coefficients) {
   intercept <- coefficients["(Intercept)"]
   
-  # Initialize the prediction with the intercept
   predicted_value <- intercept
   
-  # Add contributions from the available independent variables
   if (!is.na(row$LifeExpectancy)) {
     predicted_value <- predicted_value + coefficients["LifeExpectancy"] * row$LifeExpectancy
   }
@@ -1155,7 +1079,6 @@ predict_or_calculate_hdi <- function(row, coefficients) {
   return(predicted_value)
 }
 
-# Apply the function to fill in the missing values and calculate HDI
 completed_rows <- rows_with_one_missing %>%
   rowwise() %>%
   mutate(
@@ -1179,7 +1102,6 @@ completed_rows <- rows_with_one_missing %>%
       predict_or_calculate_hdi(cur_data(), coefficients),
       Expected_Schooling
     ),
-    # Calculate HDI for all rows using the function
     HDI = ifelse(
       is.na(HDI),
       predict_or_calculate_hdi(cur_data(), coefficients),
@@ -1188,14 +1110,12 @@ completed_rows <- rows_with_one_missing %>%
   ) %>%
   ungroup()
 
-# View the updated completed_rows dataset
 head(completed_rows)
 ```
 
 ```{r}
 library(dplyr)
 
-# Merge predicted values back into model_data
 model_data_with_predictions <- model_data %>%
   left_join(
     completed_rows %>%
@@ -1204,18 +1124,15 @@ model_data_with_predictions <- model_data %>%
     suffix = c("_original", "_predicted")
   ) %>%
   mutate(
-    # Replace missing values in the original dataset with predicted values
     LifeExpectancy = ifelse(is.na(LifeExpectancy_original), LifeExpectancy_predicted, LifeExpectancy_original),
     GNI_Per_Capita = ifelse(is.na(GNI_Per_Capita_original), GNI_Per_Capita_predicted, GNI_Per_Capita_original),
     MeanYearsOfSchooling = ifelse(is.na(MeanYearsOfSchooling_original), MeanYearsOfSchooling_predicted, MeanYearsOfSchooling_original),
     Expected_Schooling = ifelse(is.na(Expected_Schooling_original), Expected_Schooling_predicted, Expected_Schooling_original),
     HDI = ifelse(is.na(HDI_original), HDI_predicted, HDI_original)
   ) %>%
-  # Drop intermediate columns for clarity
   select(-ends_with("_original"), -ends_with("_predicted"))
 
 
-# Check the structure to confirm integration
 str(model_data_with_predictions)
 
 model2 <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Expected_Schooling, data=model_data_with_predictions )
@@ -1226,7 +1143,6 @@ summary(model2)
 library(dplyr)
 library(ggplot2)
 
-# Calculate the number of cells filled for each column
 filled_counts <- rows_with_one_missing %>%
   summarise(
     LifeExpectancy = sum(is.na(LifeExpectancy) & !is.na(completed_rows$LifeExpectancy)),
