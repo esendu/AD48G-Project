@@ -6,6 +6,7 @@ output: html_document
 ---
 
 Install before rendering:
+
 install.packages(c("httr", "zoo", "readr", "here", "renv", "data.table", "tidyverse", "ggplot2", "plotly", "dplyr", "stringr", "readxl","visNetwork", "caret" ))
 
 ```{r setup, include=FALSE}
@@ -15,6 +16,7 @@ knitr::opts_chunk$set(
   results = "hide",     # Suppress textual results in code chunks (optional)
   fig.path = "figures/" # Save figures in the "figures" folder
 )
+install.packages("here")
 library(data.table)
 library(tidyverse)
 library(plotly)
@@ -32,7 +34,7 @@ library(caret)
 
 # INTRODUCTION
 
-In this analysis, we aim to explore various socioeconomic indicators such as Human Development Index (HDI), life expectancy, education levels, political regimes, and economic measures like Gross National Income (GNI) per capita. The objective is to clean, merge, and analyze datasets from multiple sources, primarily obtained from the World Bank, filling in missing values using regression-based imputation, and derive insights through visualizations and statistical models. Additionally, we utilize decision trees to identify key variables contributing to changes in HDI and other socioeconomic measures. 
+In this analysis, we aim to explore various socioeconomic indicators such as Human Development Index (HDI), life expectancy, education levels, political regimes, and economic measures like Gross National Income (GNI) per capita. The objective is to clean, merge, and analyze datasets from multiple sources, primarily obtained from the World Bank, filling in missing values using regression-based imputation, and derive insights through visualizations and statistical models. Additionally, we utilize decision trees to identify key variables contributing to changes in GNI. 
 
 #DATA
 
@@ -558,24 +560,6 @@ aggregated_data <- democracy %>%
   group_by(Year, Political.regime) %>%
   summarize(Count = n(), .groups = "drop")
 
-# Create the bar chart
-ggplot(aggregated_data, aes(x = factor(Year), y = Count, fill = factor(Political.regime))) +
-  geom_bar(stat = "identity", position = "dodge") +
-  scale_fill_viridis_d() +
-  theme_minimal() +
-  labs(
-    title = "Number of Countries by Political Regime Over Time",
-    x = "Year",
-    y = "Number of Countries",
-    fill = "Political Regime"
-  )
-```
-```{r}
-# Summarize the data
-aggregated_data <- democracy %>%
-  group_by(Year, Political.regime) %>%
-  summarize(Count = n(), .groups = "drop")
-
 # Create the line graph
 ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime), group = Political.regime)) +
   geom_line(size = 0.5) +
@@ -598,7 +582,6 @@ ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime
 
 
 ```{r}
-library(maps)
 # Define the URL
 url_GI <- "https://ourworldindata.org/grapher/gender-inequality-index-from-the-human-development-report.csv?v=1&csvType=full&useColumnShortNames=false"
 
@@ -709,6 +692,25 @@ ggplot(electricity_generation, aes(x = Year, y = Electricity_Generation, color =
   scale_color_viridis_c() +
   theme_minimal()
 ```
+```{r}
+url_GDP <- "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?v=1&csvType=full&useColumnShortNames=true"
+
+file_path_GDP <- "electricity_generation.csv"
+
+download.file(url_GDP, file_path_GDP)
+
+GDPpercapita_raw <- read.csv(file_path_GDP)
+colnames(GDPpercapita_raw) <- c("Country Name", "Code", "Year", "GDP_per_capita")
+
+GDPpercapita <- GDPpercapita_raw[,-2]
+head(GDPpercapita)
+```
+```{r}
+ggplot(GDPpercapita, aes(x = Year, y = GDP_per_capita, color = GDP_per_capita, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
 
 *Merging All Data
 
@@ -727,7 +729,8 @@ tables <- list(
   gni_data_long,
   expected_years_of_schooling_total,
   tidy_data,
-  hdi_long
+  hdi_long,
+  GDPpercapita
 )
 
 # Merge all tables by Country Name and Year
@@ -895,6 +898,59 @@ ggplot(filled_counts, aes(x = Column, y = FilledCount, fill = Column)) +
   )
 ```
 
+# Decision Trees
+###  Separating GDP into 5 Buckets
+At first we tried to do do predictions of GNI, however GNI data was very limited therefore we chaged our approach and decided to use GDP per capita as a mesure of wealth of the country. We created 4 buckets of GDP per capita.We used percentiles to separate GDP per capita into buckets.
+
+```{r}
+
+# Calculate the percentiles, ignoring missing values
+percentiles <- quantile(merged_data$GDP_per_capita, probs = c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE)
+
+# Use the percentiles to create the GDP_Bucket
+merged_data$GDP_Bucket <- cut(
+  merged_data$GDP_per_capita,
+  breaks = percentiles,
+  labels = c("Low", "Lower-Middle", "Upper-Middle-Low", "High"),
+  include.lowest = TRUE
+)
+
+# Display the table of GDP_Bucket
+table(merged_data$GDP_Bucket)
+
+
+```
+
+## Decision Tree with only HDI Variables
+We want to see if the factors in HDI like life expectancy and education has a role on GNI.
+
+```{r}
+set.seed(123)  # For reproducibility
+split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
+train_data_HDI <- merged_data[split, ]
+test_data_HDI <- merged_data[-split, ]
+```
+
+```{r}
+library(rpart.plot)
+library(rpart)
+tree_model_HDI <- rpart(
+  GDP_Bucket ~ MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy,
+  data = train_data_HDI,
+  method = "anova", 
+  #control = rpart.control(minsplit = 5)
+)
+
+# Visualize the tree
+visNetwork::visTree(tree_model_HDI)
+
+```
+
+## Continuous GNI
+Without separating GNI into buckets, we used a continuous decision tree model to predict the exact value of GNI. We wanted to see if there are any differences on most effective factors between continuous and discrete GNI values. 
+
+### Decision Tree with All variables
+
 ```{r}
 set.seed(123)  # For reproducibility
 split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
@@ -958,20 +1014,6 @@ rpart.plot(tree_model)
 
 ### With All the Data
 
-
-```{r}
-# Define new buckets
-merged_data$GNI_Bucket <- cut(
-  merged_data$GNI_Per_Capita,
-  breaks = c(-Inf, 500, 2300, 6500, 12000, Inf),  # Adjust these ranges
-  labels = c("Low", "Lower-Middle", "Upper-Middle-Low", "Upper-Middle-High", "High")
-)
-
-# Check distribution in each bucket
-table(merged_data$GNI_Bucket)
-
-```
-
 ```{r}
 set.seed(456)  # For reproducibility
 split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
@@ -1002,9 +1044,6 @@ rpart.plot(tree_model_buckets, type = 3, extra = 104, box.palette = "Blues", sha
 
 
 ```{r}
-# Customize colors for the output (leaf) nodes
-install.packages("sparkline")
-library(sparkline)
 visNetwork::visTree(tree_model_buckets)
 
 ```
@@ -1035,4 +1074,3 @@ tree_model_buckets_wh_ee <- rpart(
 rpart.plot(tree_model_buckets_wh_ee, type = 3, extra = 104, box.palette = "Blues", shadow.col = "gray")
 
 ```
-
