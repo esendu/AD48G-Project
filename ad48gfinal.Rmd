@@ -16,6 +16,7 @@ knitr::opts_chunk$set(
   results = "hide",     # Suppress textual results in code chunks (optional)
   fig.path = "figures/" # Save figures in the "figures" folder
 )
+install.packages("here")
 library(data.table)
 library(tidyverse)
 library(plotly)
