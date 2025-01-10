@@ -919,7 +919,7 @@ library(rpart)
 tree_model_HDI <- rpart(
   GDP_Bucket ~ MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy,
   data = train_data_HDI,
-  method = "anova", 
+  method = "class", 
   #control = rpart.control(minsplit = 5)
 )
 
@@ -928,34 +928,43 @@ visNetwork::visTree(tree_model_HDI)
 
 ```
 
+```{r}
+# Compute the confusion matrix
+predictions_HDI <- predict(tree_model_HDI, test_data_HDI, type = "class")
+confusion_matrix_HDI <- caret::confusionMatrix(table(fitted = predictions_HDI, actual = test_data_HDI$GDP_Bucket))
+
+# Print the confusion matrix
+print(confusion_matrix_HDI)
+```
+
 ## Continuous GNI
 Without separating GNI into buckets, we used a continuous decision tree model to predict the exact value of GNI. We wanted to see if there are any differences on most effective factors between continuous and discrete GNI values. 
 
-### Decision Tree with All variables
+### Decision Tree with All variables - Electricty Generation
 
 ```{r}
-set.seed(123)  # For reproducibility
+set.seed(589)  
 split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
-train_data <- merged_data[split, ]
-test_data <- merged_data[-split, ]
+train_data_all <- merged_data[split, ]
+test_data_all <- merged_data[-split, ]
 ```
 
 ```{r}
 library(rpart.plot)
-library(rpart)# Train a regression decision tree
-tree_model <- rpart(
-  GNI_Per_Capita ~  Tax_Share + Population + 
-    Gender.Inequality + Political.regime + MeanYearsOfSchooling +
-    Expected_Schooling + LifeExpectancy + FDI.inflow,
-  data = train_data,
+library(rpart)
+tree_model_all <- rpart(
+  GDP_per_capita ~  Tax_Share + Population +Gender.Inequality + Political.regime + MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy + FDI.inflow,
+  data = train_data_all,
   method = "anova", 
   #control = rpart.control(minsplit = 5)
 )
 
 # Visualize the tree
-rpart.plot(tree_model)
+rpart.plot(tree_model_all)
 ```
 
+#### Decision Tree with All variables after 2000
+Electricity generation data before 2000 was limited for most of the countries. Therefore, we wanted to train another decision tree model with the data after 2000 to see if electricity generation is an important factor of GDP per capita.
 
 ```{r}
 library(dplyr)
@@ -970,28 +979,25 @@ head(data_after_2000)
 ```
 
 ```{r}
-set.seed(123)  # For reproducibility
+set.seed(389)  
 split <- sample(1:nrow(data_after_2000), size = 0.7 * nrow(data_after_2000))
 train_data_after2000 <- data_after_2000[split, ]
 test_data_after2000 <- data_after_2000[-split, ]
 ```
 
 ```{r}
-# Train a regression decision tree
-tree_model <- rpart(
-  GNI_Per_Capita ~  Tax_Share + Population + 
-    Gender.Inequality + Political.regime + MeanYearsOfSchooling +
+tree_model_2000 <- rpart(
+  GNI_Per_Capita ~  Tax_Share + Population + Electricity_Generation + Gender.Inequality + Political.regime + MeanYearsOfSchooling +
     Expected_Schooling + LifeExpectancy + FDI.inflow,
   data = train_data_after2000,
   method = "anova", 
   #control = rpart.control(minsplit = 5)
 )
 
-# Visualize the tree
-rpart.plot(tree_model)
+rpart.plot(tree_model_2000)
 ```
 
-## Decision Tree with 5 GNI Buckets
+## Decision Tree with 5 GDP Buckets
 
 
 ### With All the Data
@@ -1004,55 +1010,58 @@ test_data_buckets <- merged_data[-split, ]
 ```
 
 ```{r}
-# Load required packages
 library(rpart)
 library(rpart.plot)
 
-# Train a classification decision tree
 tree_model_buckets <- rpart(
-  GNI_Bucket ~ Electricity_Generation + Tax_Share + Population +
-    Gender.Inequality + Political.regime + MeanYearsOfSchooling +
-    Expected_Schooling + LifeExpectancy ,
+  GDP_Bucket ~ Electricity_Generation + Tax_Share + Population + Gender.Inequality + Political.regime + MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy ,
   data = train_data_buckets,
   method = "class",  # Classification method
   control = rpart.control(minsplit = 20, cp = 0.01)  # Adjust parameters as needed
 )
 
-# Visualize the tree
 rpart.plot(tree_model_buckets, type = 3, extra = 104, box.palette = "Blues", shadow.col = "gray")
 
 ```
 
-
-
 ```{r}
 visNetwork::visTree(tree_model_buckets)
-
 ```
 
 ```{r}
-
-
 # Compute the confusion matrix
-predictions <- predict(tree_model_buckets, test_data_buckets, type = "class")
-confusion_matrix <- caret::confusionMatrix(table(fitted = predictions, actual = test_data_buckets$GNI_Bucket))
+predictions_buckets_all <- predict(tree_model_buckets, test_data_buckets, type = "class")
+confusion_matrix_buckets_all <- caret::confusionMatrix(table(fitted = predictions_buckets_all, actual = test_data_buckets$GDP_Bucket))
 
 # Print the confusion matrix
-print(confusion_matrix)
+print(confusion_matrix_buckets_all)
 ```
-### Without Electricity Generation 
+### After 2000 with buckets of GDP 
+```{r}
+set.seed(389)  
+split <- sample(1:nrow(data_after_2000), size = 0.7 * nrow(data_after_2000))
+train_data_after2000 <- data_after_2000[split, ]
+test_data_after2000 <- data_after_2000[-split, ]
+```
 
 ```{r}
 # Train a classification decision tree
-tree_model_buckets_wh_ee <- rpart(
-  GNI_Bucket ~ Tax_Share + Population + Gender.Inequality + Political.regime + MeanYearsOfSchooling +
-    Expected_Schooling + LifeExpectancy,
-  data = train_data_buckets,
-  method = "class",  # Classification method
-  control = rpart.control(minsplit = 20, cp = 0.01)  # Adjust parameters as needed
+tree_model_buckets_2000 <- rpart(
+  GDP_Bucket ~ Electricity_Generation + Tax_Share + Population + Gender.Inequality + Political.regime + MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy ,
+  data = train_data_after2000,
+  method = "class", 
+  control = rpart.control(minsplit = 20, cp = 0.01)  # 
 )
 
-# Visualize the tree
-rpart.plot(tree_model_buckets_wh_ee, type = 3, extra = 104, box.palette = "Blues", shadow.col = "gray")
+visNetwork::visTree(tree_model_buckets_2000)
 
+```
+
+```{r}
+# Compute the confusion matrix
+predictions_buckets_2000 <- predict(tree_model_buckets, test_data_after2000, type = "class")
+confusion_matrix_buckets_2000 <- caret::confusionMatrix(table(fitted = predictions_buckets_2000, actual = test_data_after2000$GDP_Bucket))
+
+# Print the confusion matrix
+print(confusion_matrix_buckets_2000)
 ```
