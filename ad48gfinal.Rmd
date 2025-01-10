@@ -1069,35 +1069,35 @@ ggplot(filled_counts, aes(x = Column, y = FilledCount, fill = Column)) +
 
 # Decision Trees
 ###  Separating GDP into 5 Buckets
-At first we tried to do do predictions of GNI, however GNI data was very limited therefore we chaged our approach and decided to use GDP per capita as a mesure of wealth of the country. We created 4 buckets of GDP per capita.We used percentiles to separate GDP per capita into buckets.
+At first we tried to predict GNI, however GNI data was very limited. Therefore, we chaged our approach and decided to use GDP per capita as a mesure of wealth of the country. 
+We created 4 buckets of GDP per capita. We used percentiles to separate GDP per capita into equel size buckets.We categorized GDP per capita in countries in different years as low, lower middle, upper middle and high.
 
 ```{r}
-
-# Calculate the percentiles, ignoring missing values
-percentiles <- quantile(merged_data$GDP_per_capita, probs = c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE)
-
-# Use the percentiles to create the GDP_Bucket
-merged_data$GDP_Bucket <- cut(
-  merged_data$GDP_per_capita,
+percentiles <- quantile(new_data$GDP_per_capita, probs = c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE)
+new_data$GDP_Bucket <- cut(
+  new_data$GDP_per_capita,
   breaks = percentiles,
   labels = c("Low", "Lower-Middle", "Upper-Middle-Low", "High"),
   include.lowest = TRUE
 )
 
-# Display the table of GDP_Bucket
-table(merged_data$GDP_Bucket)
-
-
+table(new_data$GDP_Bucket)
+```
+#### Baseline Guessing
+To be able to compare our decision tree models' performances, we printed the random guessing model's accuracy. 
+```{r} 
+baseline_random <- 1 / 4
+print(paste("Baseline Accuracy (Random Guessing):", baseline_random))
 ```
 
 ## Decision Tree with only HDI Variables
-We want to see if the factors in HDI like life expectancy and education has a role on GNI.
+We want to see if the factors in HDI like life expectancy and education has a role on GNI. Therefore, we regressed GDP classes on mean years of schooling, expected years of schooling and life expectancy. 
 
 ```{r}
-set.seed(123)  # For reproducibility
-split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
-train_data_HDI <- merged_data[split, ]
-test_data_HDI <- merged_data[-split, ]
+set.seed(375)  
+split <- sample(1:nrow(new_data), size = 0.7 * nrow(new_data))
+train_data <- new_data[split, ]
+test_data <- new_data[-split, ]
 ```
 
 ```{r}
@@ -1105,49 +1105,40 @@ library(rpart.plot)
 library(rpart)
 tree_model_HDI <- rpart(
   GDP_Bucket ~ MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy,
-  data = train_data_HDI,
+  data = train_data,
   method = "class", 
   #control = rpart.control(minsplit = 5)
 )
-
-# Visualize the tree
 visNetwork::visTree(tree_model_HDI)
 
 ```
+The most prominant factor determining the GDP per capita is life expectancy. However, this only shows us a strong correlation between life expectancy and GDP per capita. We can not determine the direction of the relationship from this decision tree. 
 
 ```{r}
-# Compute the confusion matrix
-predictions_HDI <- predict(tree_model_HDI, test_data_HDI, type = "class")
-confusion_matrix_HDI <- caret::confusionMatrix(table(fitted = predictions_HDI, actual = test_data_HDI$GDP_Bucket))
-
-# Print the confusion matrix
+predictions_HDI <- predict(tree_model_HDI, test_data, type = "class")
+confusion_matrix_HDI <- caret::confusionMatrix(table(fitted = predictions_HDI, actual = test_data$GDP_Bucket))
 print(confusion_matrix_HDI)
 ```
+Accuracy is 0.63 which a lot higher than baseline accuracy. Therefore, our model improves the predictions. However, its success is limited. 
+We are going to incorparate more variables into our model to improve its prediction power.
 
-## Continuous GNI
-Without separating GNI into buckets, we used a continuous decision tree model to predict the exact value of GNI. We wanted to see if there are any differences on most effective factors between continuous and discrete GNI values. 
+## Continuous GDP Prediction
+Without separating GDP into buckets, we used a continuous decision tree model to predict the exact value of GDP per capita.
+We wanted to see if there are any differences on most effective factors between continuous and discrete GDP per capita values. 
 
-### Decision Tree with All variables - Electricty Generation
-
-```{r}
-set.seed(589)  
-split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
-train_data_all <- merged_data[split, ]
-test_data_all <- merged_data[-split, ]
-```
+### Decision Tree with All variables minus Electricty Generation
 
 ```{r}
 library(rpart.plot)
 library(rpart)
 tree_model_all <- rpart(
   GDP_per_capita ~  Tax_Share + Population +Gender.Inequality + Political.regime + MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy + FDI.inflow,
-  data = train_data_all,
+  data = train_data,
   method = "anova", 
   #control = rpart.control(minsplit = 5)
 )
 
-# Visualize the tree
-rpart.plot(tree_model_all)
+visNetwork::visTree(tree_model_all)
 ```
 
 #### Decision Tree with All variables after 2000
@@ -1157,19 +1148,18 @@ Electricity generation data before 2000 was limited for most of the countries. T
 library(dplyr)
 library(tidyr)
 
-# Filter rows where Year >= 2000
-data_after_2000 <- merged_data %>%
+data_after_2000 <- new_data %>%
   filter(Year >= 2000)
 
-# View the filtered dataset
 head(data_after_2000)
 ```
+We separated the data after 2000 into training and test sets.
 
 ```{r}
 set.seed(389)  
-split <- sample(1:nrow(data_after_2000), size = 0.7 * nrow(data_after_2000))
-train_data_after2000 <- data_after_2000[split, ]
-test_data_after2000 <- data_after_2000[-split, ]
+split_2000 <- sample(1:nrow(data_after_2000), size = 0.7 * nrow(data_after_2000))
+train_data_after2000 <- data_after_2000[split_2000, ]
+test_data_after2000 <- data_after_2000[-split_2000, ]
 ```
 
 ```{r}
@@ -1181,20 +1171,15 @@ tree_model_2000 <- rpart(
   #control = rpart.control(minsplit = 5)
 )
 
-rpart.plot(tree_model_2000)
+visNetwork::visTree(tree_model_2000)
 ```
 
-## Decision Tree with 5 GDP Buckets
+Using the data after 2000 showed us that the most important factor to determine GDP per capita is population. After that electricity generation is the factor that decreases the entropy the most. Higher electricity generation indicated a higher GDP per capita. This is perfectly logical since most of the advance economies use high amounts of electricity in production and technology services. 
 
+## Decision Tree with 4 GDP Buckets
+Now instead of using a continuous model, we are going to use a discrete classification model with 4 groups of the target variable. 
 
 ### With All the Data
-
-```{r}
-set.seed(456)  # For reproducibility
-split <- sample(1:nrow(merged_data), size = 0.7 * nrow(merged_data))
-train_data_buckets <- merged_data[split, ]
-test_data_buckets <- merged_data[-split, ]
-```
 
 ```{r}
 library(rpart)
@@ -1202,10 +1187,9 @@ library(rpart.plot)
 
 tree_model_buckets <- rpart(
   GDP_Bucket ~ Electricity_Generation + Tax_Share + Population + Gender.Inequality + Political.regime + MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy ,
-  data = train_data_buckets,
-  method = "class",  # Classification method
-  control = rpart.control(minsplit = 20, cp = 0.01)  # Adjust parameters as needed
-)
+  data = train_data,
+  method = "class", 
+  control = rpart.control(minsplit = 20, cp = 0.01) )
 
 rpart.plot(tree_model_buckets, type = 3, extra = 104, box.palette = "Blues", shadow.col = "gray")
 
@@ -1215,24 +1199,19 @@ rpart.plot(tree_model_buckets, type = 3, extra = 104, box.palette = "Blues", sha
 visNetwork::visTree(tree_model_buckets)
 ```
 
-```{r}
-# Compute the confusion matrix
-predictions_buckets_all <- predict(tree_model_buckets, test_data_buckets, type = "class")
-confusion_matrix_buckets_all <- caret::confusionMatrix(table(fitted = predictions_buckets_all, actual = test_data_buckets$GDP_Bucket))
+In the discrete model, most important factor is life expectancy. We now that most developed nations have higher life expectancies therefore higher life expectancy points to a higher GDP. Again we see the importance of electricity generation at it is the second and third node.
+The significant difference between discrete and continuous model is that in the discrete one, population is not that important to determine GDP as it is the factor in the last node.
 
-# Print the confusion matrix
+```{r}
+predictions_buckets_all <- predict(tree_model_buckets, test_data, type = "class")
+confusion_matrix_buckets_all <- caret::confusionMatrix(table(fitted = predictions_buckets_all, actual = test_data$GDP_Bucket))
 print(confusion_matrix_buckets_all)
 ```
-### After 2000 with buckets of GDP 
-```{r}
-set.seed(389)  
-split <- sample(1:nrow(data_after_2000), size = 0.7 * nrow(data_after_2000))
-train_data_after2000 <- data_after_2000[split, ]
-test_data_after2000 <- data_after_2000[-split, ]
-```
+We see that accuracy increased to 73%. It increased 10 percentage point compared to using only HDI factors. Incorparating more factors into the model allows us to make better GDP per capita predictions.
 
+### After 2000 with buckets of GDP 
+We are going to do a decision tree with all data after 2000 to predict the group of GDP per capita.
 ```{r}
-# Train a classification decision tree
 tree_model_buckets_2000 <- rpart(
   GDP_Bucket ~ Electricity_Generation + Tax_Share + Population + Gender.Inequality + Political.regime + MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy ,
   data = train_data_after2000,
@@ -1241,14 +1220,15 @@ tree_model_buckets_2000 <- rpart(
 )
 
 visNetwork::visTree(tree_model_buckets_2000)
-
 ```
+Again, countries producing high electricity are classified as high GDP per capita countries. And high life expectancy points to a high GDP. 
+The effect of political regime is an interesting one. As Daron Acemoğlu mentioned in his books, democracy is an important factor in development and GDP. He said that countries with storng democracies are generally richer. However in our model the effet of political regime is the opposite one. Countries with 0 in their political regimes are autocracies. And in this model, 0 in political regime points to a high GDP.  
 
 ```{r}
-# Compute the confusion matrix
 predictions_buckets_2000 <- predict(tree_model_buckets, test_data_after2000, type = "class")
 confusion_matrix_buckets_2000 <- caret::confusionMatrix(table(fitted = predictions_buckets_2000, actual = test_data_after2000$GDP_Bucket))
 
-# Print the confusion matrix
 print(confusion_matrix_buckets_2000)
 ```
+
+The accuracy of the model that is trained with the data after 2000 is higher with 75% score. This may be due to the fact that the data quality is higher and there are much less unavaliable data points after 2000. Therefore, the model can make better predictions and has a lot more data to learn from. 
