@@ -16,7 +16,6 @@ knitr::opts_chunk$set(
   results = "hide",     # Suppress textual results in code chunks (optional)
   fig.path = "figures/" # Save figures in the "figures" folder
 )
-install.packages("here")
 library(data.table)
 library(tidyverse)
 library(plotly)
@@ -57,37 +56,27 @@ A summary table showing the number of countries in each hdicode group is display
 # Define the URL
 url_hdi <- "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"
 
-# Define the local file path
 file_path_hdi <- "data/hdi_time_series.csv"
 
-# Create the 'data' directory if it doesn't exist
 dir.create("data", showWarnings = FALSE)
 
-# Download the file
 download.file(url_hdi, destfile = file_path_hdi, mode = "wb")
 
-# Load the dataset into R
 hdi <- fread(file_path_hdi, encoding = "UTF-8")
 
-# Subset columns that start with 'hdi_' followed by a number
 hdi_columns <- grep("^hdi_\\d+", colnames(hdi), value = TRUE)
 
-# Create a new dataset with the selected columns and additional identifier columns
 hdi <- hdi[, c("country", "hdicode", hdi_columns), with = FALSE]
 
-# Identify only the columns starting with "hdi_" and followed by a number
 hdi_columns <- grep("^hdi_\\d+", colnames(hdi), value = TRUE)
 
-# Melt the dataset into long format, keeping only the valid hdi columns
 hdi_long <- melt(
   hdi,
-  id.vars = c("country", "hdicode"),    # Columns to keep as identifiers
-  measure.vars = hdi_columns,                  # Valid HDI columns
-  variable.name = "Year",                      # New column name for years
-  value.name = "HDI"                           # New column name for HDI values
-)
+  id.vars = c("country", "hdicode"),    
+  measure.vars = hdi_columns,                
+  variable.name = "Year",                     
+  value.name = "HDI")                          
 
-# Clean the Year column (remove 'hdi_' prefix)
 hdi_long[, Year := as.numeric(gsub("hdi_", "", Year))]
 
 colnames(hdi_long)[colnames(hdi_long) == "country"] <- "Country Name"
@@ -95,7 +84,7 @@ colnames(hdi_long)[colnames(hdi_long) == "country"] <- "Country Name"
 head(hdi_long)
 
 hdicode_group <- hdi_long[, .(
-  Number_of_Countries = uniqueN(`Country Name`)  # Count unique countries
+  Number_of_Countries = uniqueN(`Country Name`) 
 ), by = hdicode]
 
 # View the grouped dataset
@@ -117,57 +106,50 @@ very_high <- hdi_long[hdicode == "Very High", sample(unique(`Country Name`), 5)]
 
 ```
 
+##2.Life Expectancy
+
+####Data Collection
+
+The dataset is sourced from the World Bank API. First, we downloaded the data in a ZIP file format, extracted, and loaded it into R using the `fread()` function. Then, we cleaned the column names and assigned them properly by extracting the first row. We excluded irrelevant columns, and reshaped the dataset into a tidy format using `pivot_longer()`. With this transformation, we wanted to combine all year columns into a single Year column, while storing corresponding life expectancy values in a LifeExpectancy column. Additionally, we converted the Year column into integer form for proper numerical processing. The resulting dataset provides a structured format where each row represents a specific country, year, and its respective life expectancy value.
 
 ```{r}
-# Define the World Bank API URL
 url_LE <- "https://api.worldbank.org/v2/en/indicator/SP.DYN.LE00.IN?downloadformat=csv"
 
-# Define the local path to save the file
 output_zip_LE <- here("data", "life_expectancy.zip")
 
-# Create the data directory if it doesn't exist
 dir.create("data", showWarnings = FALSE)
 
-# Download the zip file
 GET(url_LE, write_disk(output_zip_LE, overwrite = TRUE))
 
-# Unzip the downloaded file
 unzip(output_zip_LE, exdir = here("data"))
 
-# Reload the file with explicit settings
 file_path_LE<- "data/API_SP.DYN.LE00.IN_DS2_en_csv_v2_87.csv"
 life_expectancy_data_raw <- data.table::fread(file_path_LE, encoding = "UTF-8")
 
-# Extract the first row as a character vector for column names
 new_colnames <- as.character(unlist(life_expectancy_data_raw[1, ]))
 
-# Assign the new column names
 setnames(life_expectancy_data_raw, new_colnames)
 
-# Remove the first row since it's now the column names
 life_expectancy_data_raw <- life_expectancy_data_raw[-1, ]
 
-# Clean the column names (remove '.00000')
 setnames(life_expectancy_data_raw, gsub("\\.00000$", "", colnames(life_expectancy_data_raw)))
 
-# Check the updated data
 head(life_expectancy_data_raw)
 
 life_expectancy <- life_expectancy_data_raw[,-c(2,3,4,68,69)]
 head(life_expectancy)
 
-# Reshape the data to long format
 tidy_data <- life_expectancy %>%
   pivot_longer(
-    cols = starts_with("19") | starts_with("20"), # Select year columns
-    names_to = "Year",                           # Column for years
-    values_to = "LifeExpectancy"                 # Column for life expectancy values
+    cols = starts_with("19") | starts_with("20"), 
+    names_to = "Year",                           
+    values_to = "LifeExpectancy"                 
   ) %>%
-  mutate(Year = as.integer(Year))               # Convert year to integer
+  mutate(Year = as.integer(Year))              
 
-# View the tidy data
 head(tidy_data)
 ```
+
 ```{r}
 ggplot(tidy_data, aes(x = Year, y = LifeExpectancy, color = LifeExpectancy, group = `Country Name`)) +
   geom_line(alpha = 0.7) +
