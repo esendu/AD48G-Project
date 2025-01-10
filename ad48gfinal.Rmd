@@ -870,7 +870,37 @@ ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime
   )
 
 ```
-
+```{r}
+ggplot(selected_countries, aes(x = Year, y = Political.regime, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "Political Regimes Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Political Regimes",
+    color = "Country"
+  ) +
+  scale_y_continuous(
+    breaks = 0:3,  # Add breaks for 0, 1, 2, 3
+    labels = c(
+      "0 = Closed Autocracy",
+      "1 = Electoral Autocracy",
+      "2 = Electoral Democracy",
+      "3 = Liberal Democracy"
+    )  # Add labels to explain values
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none",  # Remove legend for color (labels are on the plot)
+    panel.grid.minor = element_blank()
+  )
+```
 
 gender inequality
 
