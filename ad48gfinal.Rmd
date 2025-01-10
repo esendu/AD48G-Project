@@ -11,12 +11,11 @@ install.packages(c("httr", "zoo", "readr", "here", "renv", "data.table", "tidyve
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-  warning = FALSE,      # Suppress warnings
-  message = FALSE,      # Suppress messages
-  results = "hide",     # Suppress textual results in code chunks (optional)
-  fig.path = "figures/" # Save figures in the "figures" folder
+  warning = FALSE,      
+  message = FALSE,      
+  results = "hide",    
+  fig.path = "figures/" 
 )
-install.packages("here")
 library(data.table)
 library(tidyverse)
 library(plotly)
@@ -52,7 +51,6 @@ Lastly, we grouped the data by hdicode in 4 categories: "Low," "Medium," "High,"
 A summary table showing the number of countries in each hdicode group is displayed in the output.
 
 ```{r}
-# Define the URL
 url_hdi <- "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"
 
 file_path_hdi <- "data/hdi_time_series.csv"
@@ -130,16 +128,13 @@ head(tidy_data)
 The dataset for expected years of schooling is sourced from the World Bank's gender data portal. The data is downloaded as a ZIP file and extracted into a local directory. We loaded the extracted CSV file into R and removed unnecessary columns to focus on the relevant data. There were a lot of missing values in the data. So, by using the zoo package, we filled the missing values with the previous non-missing value for consistency. Finally, we filtered the rows where the schooling data is categorized as "total", and renamed the "Value" column to Expected_Schooling for better clarity and consistency among our datasets.
 
 ```{r}
-# Load necessary libraries
-library(httr)  # For downloading files
-library(zip)   # For handling ZIP files (optional, built-in utils can also be used)
+library(httr)  
+library(zip)  
 
-# Define the URL and output file path
 url_ee <- "https://extdataportal.worldbank.org/content/dam/sites/data/gender-data/data/data-gen/zip/indicator/expected-years-of-schooling.zip"
 output_zip_ee <- "expected_years_of_schooling.zip"
 output_dir_ee <- "expected_years_of_schooling"
 
-# Step 1: Download the file
 download.file(url_ee, output_zip_ee, mode = "wb")
 
 # Step 2: Unzip the downloaded file
@@ -152,7 +147,6 @@ unzip(output_zip_ee, exdir = output_dir_ee)
 extracted_files <- list.files(output_dir_ee, full.names = TRUE)
 print(extracted_files)
 
-# Optional: Load the data (assuming it's in CSV format; adjust as needed)
 expected_years_of_schooling_raw<- read.csv("expected_years_of_schooling/Expected years of schooling.csv")
 head(expected_years_of_schooling_raw)
 
@@ -403,7 +397,11 @@ GDPpercapita <- GDPpercapita_raw[,-2]
 head(GDPpercapita)
 ```
 
-*Merging All Data
+#Merging All Data
+
+We prepared a comprehensive dataset (new_data) by merging all of our data tables. First, we used the `reduce` function to merge datasets based on common columns, Country Name and Year, ensuring a complete, unified dataset. The data is then filtered to include only the years between 1970 and 2023. 
+
+Additionally, we cleaned the dataset by removing non-country entities such as regions (e.g., "Africa (UN)", "World", "Latin America & Caribbean") to ensure that only individual countries are analyzed. To address inconsistencies in country naming conventions across datasets, we used a mapping strategy with the `recode` function to standardize country names (e.g., Congo (Democratic Republic of the)" to "Congo"). Afterwards, we grouped the data by Country Name and Year and consolidated any duplicate rows. Our final dataset, new_data, is structured and cleaned, and is ready for further analysis.
 
 ```{r}
 # Ensure all datasets are data.tables
@@ -612,6 +610,8 @@ str(new_data)
 
 ```
 
+The countries are grouped in the hdicode column by 4 categories: "Low," "Medium," "High," "Very High". Utilizing this classification, we selected 5 countries from each category and created a subset of the new_data dataset to use for our further analysis. We will mainly be using this dataset for our plots to observe the differences in many variables for each category.
+
 ```{r}
 hdicode_group <- hdi_long[, .(
   Number_of_Countries = uniqueN(`Country Name`) 
@@ -647,6 +647,7 @@ selected_countries <- selected_countries %>%
     )
   )
 ```
+
 Life Expectancy Plot
 ```{r}
 ggplot(new_data, aes(x = Year, y = LifeExpectancy, color = LifeExpectancy, group = `Country Name`)) +
@@ -846,15 +847,18 @@ ggplot(mean_schooling, aes(x = Year, y = MeanYearsOfSchooling, color = MeanYears
 democracy plot
 
 ```{r}
-# Summarize the data
+
+str(democracy)
+
+str(aggregated_data)
+
 aggregated_data <- democracy %>%
   group_by(Year, Political.regime) %>%
   summarize(Count = n(), .groups = "drop")
 
-# Create the line graph
 ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime), group = Political.regime)) +
   geom_line(size = 0.5) +
-  geom_point(size = 0.2) +  # Optional: Add points for emphasis
+  geom_point(size = 0.2) +  
   scale_color_viridis_d() +
   theme_minimal(base_size = 14) +
   labs(
@@ -870,8 +874,10 @@ ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime
   )
 
 ```
+
 ```{r}
-ggplot(selected_countries, aes(x = Year, y = Political.regime, color = `Country Name`, group = `Country Name`)) +
+
+ggplot(selected_countries, aes(x = Year, y = Political.regime , color = `Country Name`, group = `Country Name`)) +
   geom_line(size = 0.5) +
   geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
   facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
@@ -1097,6 +1103,17 @@ ggplot(selected_countries_1990, aes(x = Year, y = Electricity_Generation, color 
   )
 ```
 
+#Predicting Missing Values with a Linear Regression Model
+
+There were a lot of missing values in our dataset. So, we wanted to predict some of these values by a regression model.
+
+First, we subsetted our new_data dataset to create model_data, which only includes the necessary columns for our regression analysis. The selected columns are Country Name, Year, LifeExpectancy, GNI_Per_Capita, MeanYearsOfSchooling, Expected_Schooling, and HDI. 
+
+We then used these columns to fit a linear regression model (model) where HDI is the dependent variable, and the rest are independent variables. The summary(model) function provides the regression results, including coefficients, residuals, and significance levels. 
+
+From the model summary we can see that there are indeed a lot of missing values, 13314 observations were deleted due to missingness.
+
+We identified the rows with exactly one missing value in the selected columns (rows_with_one_missing) for further analysis. These rows will be targeted for imputation using the coefficients from the regression model.
 
 ```{r}
 
@@ -1130,6 +1147,13 @@ nrow(rows_with_one_missing)
 # Regression coefficients from your model
 coefficients <- coef(model)
 ```
+
+We created a custom function, predict_or_calculate_hdi, to predict missing values in the dataset. The function uses the regression coefficients obtained from the model to calculate the predicted value based on the available independent variables. 
+
+The function is applied row-by-row to the dataset rows_with_one_missing. For rows with missing values in one column, the corresponding value is predicted and replaced. 
+
+The result is a dataset completed_rows, where missing values have been imputed.
+
 ```{r}
 # Define a function to predict the missing value or calculate HDI
 predict_or_calculate_hdi <- function(row, coefficients) {
@@ -1192,6 +1216,11 @@ completed_rows <- rows_with_one_missing %>%
 head(completed_rows)
 ```
 
+We merged the predicted values from completed_rows back into model_data to create a new dataset, model_data_with_predictions. Here, we used the `left_join` function to combine the original and predicted datasets based on Country Name and Year. 
+The result is a dataset with imputed values integrated into the original dataset. 
+
+We conducted a new regression model, model2, fitted on this updated dataset to evaluate the impact of the imputed values on the regression analysis. We saw that , while conducting this analysis, 10310 observations were deleted, meaning that around 3000 observations were imputed by our function. 
+
 ```{r}
 library(dplyr)
 
@@ -1221,6 +1250,8 @@ str(model_data_with_predictions)
 model2 <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Expected_Schooling, data=model_data_with_predictions )
 summary(model2)
 ```
+
+Lastly, we wanted to visualize the number of imputed observations for each column. We created a bar plot, showing the number of cells filled for each column. 
 
 ```{r}
 library(dplyr)
@@ -1254,9 +1285,12 @@ ggplot(filled_counts, aes(x = Column, y = FilledCount, fill = Column)) +
   )
 ```
 
-# Decision Trees
-###  Separating GDP into 5 Buckets
+#Decision Trees
+
+###Separating GDP into 5 Buckets
+
 At first we tried to predict GNI, however GNI data was very limited. Therefore, we chaged our approach and decided to use GDP per capita as a mesure of wealth of the country. 
+
 We created 4 buckets of GDP per capita. We used percentiles to separate GDP per capita into equel size buckets.We categorized GDP per capita in countries in different years as low, lower middle, upper middle and high.
 
 ```{r}
@@ -1270,15 +1304,19 @@ new_data$GDP_Bucket <- cut(
 
 table(new_data$GDP_Bucket)
 ```
-#### Baseline Guessing
+
+####Baseline Guessing
+
 To be able to compare our decision tree models' performances, we printed the random guessing model's accuracy. 
+
 ```{r} 
 baseline_random <- 1 / 4
 print(paste("Baseline Accuracy (Random Guessing):", baseline_random))
 ```
 
 ## Decision Tree with only HDI Variables
-We want to see if the factors in HDI like life expectancy and education has a role on GNI. Therefore, we regressed GDP classes on mean years of schooling, expected years of schooling and life expectancy. 
+
+We wanted to see if the factors in HDI like life expectancy and education has a role on GNI. Therefore, we regressed GDP classes on mean years of schooling, expected years of schooling and life expectancy. 
 
 ```{r}
 set.seed(375)  
@@ -1299,6 +1337,7 @@ tree_model_HDI <- rpart(
 visNetwork::visTree(tree_model_HDI)
 
 ```
+
 The most prominant factor determining the GDP per capita is life expectancy. However, this only shows us a strong correlation between life expectancy and GDP per capita. We can not determine the direction of the relationship from this decision tree. 
 
 ```{r}
@@ -1306,10 +1345,12 @@ predictions_HDI <- predict(tree_model_HDI, test_data, type = "class")
 confusion_matrix_HDI <- caret::confusionMatrix(table(fitted = predictions_HDI, actual = test_data$GDP_Bucket))
 print(confusion_matrix_HDI)
 ```
+
 Accuracy is 0.63 which a lot higher than baseline accuracy. Therefore, our model improves the predictions. However, its success is limited. 
 We are going to incorparate more variables into our model to improve its prediction power.
 
 ## Continuous GDP Prediction
+
 Without separating GDP into buckets, we used a continuous decision tree model to predict the exact value of GDP per capita.
 We wanted to see if there are any differences on most effective factors between continuous and discrete GDP per capita values. 
 
@@ -1329,6 +1370,7 @@ visNetwork::visTree(tree_model_all)
 ```
 
 #### Decision Tree with All variables after 2000
+
 Electricity generation data before 2000 was limited for most of the countries. Therefore, we wanted to train another decision tree model with the data after 2000 to see if electricity generation is an important factor of GDP per capita.
 
 ```{r}
@@ -1340,6 +1382,7 @@ data_after_2000 <- new_data %>%
 
 head(data_after_2000)
 ```
+
 We separated the data after 2000 into training and test sets.
 
 ```{r}
@@ -1364,6 +1407,7 @@ visNetwork::visTree(tree_model_2000)
 Using the data after 2000 showed us that the most important factor to determine GDP per capita is population. After that electricity generation is the factor that decreases the entropy the most. Higher electricity generation indicated a higher GDP per capita. This is perfectly logical since most of the advance economies use high amounts of electricity in production and technology services. 
 
 ## Decision Tree with 4 GDP Buckets
+
 Now instead of using a continuous model, we are going to use a discrete classification model with 4 groups of the target variable. 
 
 ### With All the Data
@@ -1394,10 +1438,13 @@ predictions_buckets_all <- predict(tree_model_buckets, test_data, type = "class"
 confusion_matrix_buckets_all <- caret::confusionMatrix(table(fitted = predictions_buckets_all, actual = test_data$GDP_Bucket))
 print(confusion_matrix_buckets_all)
 ```
+
 We see that accuracy increased to 73%. It increased 10 percentage point compared to using only HDI factors. Incorparating more factors into the model allows us to make better GDP per capita predictions.
 
 ### After 2000 with buckets of GDP 
+
 We are going to do a decision tree with all data after 2000 to predict the group of GDP per capita.
+
 ```{r}
 tree_model_buckets_2000 <- rpart(
   GDP_Bucket ~ Electricity_Generation + Tax_Share + Population + Gender.Inequality + Political.regime + MeanYearsOfSchooling + Expected_Schooling + LifeExpectancy ,
@@ -1408,6 +1455,7 @@ tree_model_buckets_2000 <- rpart(
 
 visNetwork::visTree(tree_model_buckets_2000)
 ```
+
 Again, countries producing high electricity are classified as high GDP per capita countries. And high life expectancy points to a high GDP. 
 The effect of political regime is an interesting one. As Daron Acemoğlu mentioned in his books, democracy is an important factor in development and GDP. He said that countries with storng democracies are generally richer. However in our model the effet of political regime is the opposite one. Countries with 0 in their political regimes are autocracies. And in this model, 0 in political regime points to a high GDP.  
 
