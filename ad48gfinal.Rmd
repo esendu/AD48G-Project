@@ -723,6 +723,7 @@ merged_data <- subset(merged_data, Year >= 1970)
 
 str(merged_data)
 
+merged_data <- merged_data[!merged_data$`Country Name` %in% c(
 "Africa (UN)",                                         
 "Africa Eastern and Southern" ,                        
 "Africa Western and Central"   ,                       
@@ -829,59 +830,80 @@ str(merged_data)
 "Upper-middle-income countries"
 ), ]
 
-unique(merged_data$`Country Name`)
 
 country_name_mapping <- c(
   "Congo (Democratic Republic of the)" = "Congo, Dem. Rep.",
   "Congo, Rep." = "Congo, Dem. Rep.",
    "Democratic Republic of Congo" =  "Congo, Rep." ,
    "Democratic Republic of Congo" = "Congo",
-  "Bahamas" = "Bahamas, The",
-   "Cote d'Ivoire" = "C\xf4te d'Ivoire",
+  "Congo, Dem. Rep."="Congo",
+  "Bahamas, The"="Bahamas",
+    "C\xf4te d'Ivoire"="Cote d'Ivoire",
   "Czechia"="Czechoslovakia",
-  "Gambia" = "Gambia, The",
-  "Bolivia"= "Bolivia (Plurinational State of)",
-  "Ethiopia"="Ethiopia (former)",
-  "Egypt"="Egypt, Arab Rep.",
+  "Gambia, The"= "Gambia" ,
+  "Bolivia (Plurinational State of)"= "Bolivia",
+  "Ethiopia (former)"="Ethiopia",
+  "Egypt, Arab Rep."="Egypt",
   "Hong Kong"="Hong Kong SAR, China",
   "Hong Kong SAR, China" ="Hong Kong, China (SAR)",
-  "Eswatini"="Eswatini (Kingdom of)", 
-   "Iran"="Iran (Islamic Republic of)",
-  "Iran (Islamic Republic of)"="Iran, Islamic Rep.",
+  "Eswatini (Kingdom of)"="Eswatini", 
+   "Iran (Islamic Republic of)"="Iran",
+ "Iran, Islamic Rep."="Iran",
   "Korea (Democratic People's Rep. of)" = "Korea (Republic of)",
   "Korea (Republic of)"="Korea, Dem. People's Rep.",
   "Korea, Dem. People's Rep."=    "Korea, Rep.",
    "Micronesia (country)"="Micronesia (Federated States of)" ,
    "Micronesia (Federated States of)"="Micronesia, Fed. Sts.",
-"Moldova"="Moldova (Republic of)" ,
+  "Micronesia, Fed. Sts."="Micronesia",
+"Moldova (Republic of)"="Moldova" ,
 "Kyrgyz Republic"= "Kyrgyzstan"    ,
 "Lao PDR"="Lao People's Democratic Republic"   ,
  "Macao"="Macao SAR, China",
 "Palestine"="Palestine, State of",
    "Palestine, State of"="Palestine/Gaza",
    "Palestine/Gaza" = "Palestine/West Bank",
+"Palestine/West Bank"  = "Palestine/Gaza" ,
 "Slovak Republic"="Slovakia"                    ,
 "Yemen" ="Yemen Arab Republic",
    "Yemen Arab Republic"="Yemen People's Republic",
    "Yemen People's Republic"="Yemen, Rep.",
 "Russia"="Russian Federation",
 "Serbia"="Serbia and Montenegro"          ,
-"Syria"="Syrian Arab Republic"           ,
+"Syrian Arab Republic" ="Syria"         ,
   "Viet Nam"= "Vietnam",     
   "Democratic Republic of Vietnam" = "Republic of Vietnam",
- "Tanzania" ="Tanzania (United Republic of)",
-"Turkiye" = "Turkey",
-"Turkey" =   "T\xfcrkiye",
- "Venezuela"="Venezuela (Bolivarian Republic of)",
-"Venezuela (Bolivarian Republic of)"="Venezuela, RB"
-
+ "Tanzania (United Republic of)"="Tanzania" ,
+"T\xfcrkiye" = "Turkey",
+"Turkey"="Turkiye",
+ "Venezuela (Bolivarian Republic of)" = "Venezuela",
+"Venezuela, RB" = "Venezuela"
 
 )
+new_data <- merged_data %>%
+  mutate(`Country Name` = recode(`Country Name`, !!!country_name_mapping))
 
-merged_data <- merged_data %>%
-  mutate(`Country Name` = recode(`Country Name`, !!!country_name_mapping))                            
-unique(merged_data$`Country Name`)
-                   
+country_name_mapping2 <- c(
+  "Palestine/West Bank"  = "Palestine/Gaza",
+  "Congo, Dem. Rep."    = "Congo",
+  "Turkey" = "Turkiye",
+   "Yemen, Rep." = "Yemen People's Republic",
+  "Micronesia, Fed. Sts."    =  "Micronesia" ,
+   "Korea, Rep."     = "Korea, Dem. People's Rep."  
+)
+  
+new_data <- new_data %>%
+  mutate(`Country Name` = recode(`Country Name`, !!!country_name_mapping2))
+
+
+str(new_data)
+
+# Group by Country Name and Year, and summarize other columns
+new_data <- new_data %>%
+  group_by(`Country Name`, Year) %>%
+  summarize(across(everything(), ~ mean(., na.rm = TRUE)), .groups = "drop")
+
+str(new_data)
+
 
 ```
 
