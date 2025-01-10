@@ -31,15 +31,13 @@ library(visNetwork)
 library(caret)
 ```
 
-# INTRODUCTION
+#INTRODUCTION
 
 In this analysis, we aim to explore various socioeconomic indicators such as Human Development Index (HDI), life expectancy, education levels, political regimes, and economic measures like Gross National Income (GNI) per capita. The objective is to clean, merge, and analyze datasets from multiple sources, primarily obtained from the World Bank, filling in missing values using regression-based imputation, and derive insights through visualizations and statistical models. Additionally, we utilize decision trees to identify key variables contributing to changes in GNI. 
 
-#DATA
+#DATA COLLECTION
 
-##1. HDI
-
-####Data Collection
+###1. HDI
 
 We downloaded the Human Development Index (HDI) dataset from the UNDP website and saved the file locally in a directory called data, before loading the dataset into R using `fread()` from the data.table package. We selected columns that start with hdi_ followed by a year, as our aim was to obtain each country's HDI by year, along with identifier columns and hdiscore column. Then, we transformed the dataset into a long format using the melt() function.
 
@@ -82,33 +80,9 @@ hdi_long[, Year := as.numeric(gsub("hdi_", "", Year))]
 colnames(hdi_long)[colnames(hdi_long) == "country"] <- "Country Name"
 
 head(hdi_long)
-
-hdicode_group <- hdi_long[, .(
-  Number_of_Countries = uniqueN(`Country Name`) 
-), by = hdicode]
-
-# View the grouped dataset
-print(hdicode_group)
 ```
 
-```{r}
-set.seed(207)
-low <- hdi_long[hdicode == "Low", sample(unique(`Country Name`), 5)]
-
-set.seed(208)
-medium <- hdi_long[hdicode == "Medium", sample(unique(`Country Name`), 5)]
-
-set.seed(207)
-high <- hdi_long[hdicode == "High", sample(unique(`Country Name`), 5)]
-
-set.seed(207)
-very_high <- hdi_long[hdicode == "Very High", sample(unique(`Country Name`), 5)]
-
-```
-
-##2.Life Expectancy
-
-####Data Collection
+###2.Life Expectancy
 
 The dataset is sourced from the World Bank API. First, we downloaded the data in a ZIP file format, extracted, and loaded it into R using the `fread()` function. Then, we cleaned the column names and assigned them properly by extracting the first row. We excluded irrelevant columns, and reshaped the dataset into a tidy format using `pivot_longer()`. With this transformation, we wanted to combine all year columns into a single Year column, while storing corresponding life expectancy values in a LifeExpectancy column. Additionally, we converted the Year column into integer form for proper numerical processing. The resulting dataset provides a structured format where each row represents a specific country, year, and its respective life expectancy value.
 
@@ -150,114 +124,7 @@ tidy_data <- life_expectancy %>%
 head(tidy_data)
 ```
 
-```{r}
-ggplot(tidy_data, aes(x = Year, y = LifeExpectancy, color = LifeExpectancy, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-```
-
-```{r}
-library(ggplot2)
-library(dplyr)
-library(ggrepel)
-
-# Filter data for the selected countries in each group
-selected_countries <- tidy_data %>%
-  filter(
-    `Country Name` %in% low | 
-    `Country Name` %in% medium | 
-    `Country Name` %in% high | 
-    `Country Name` %in% very_high
-  ) %>%
-  mutate(
-    HDI_Group = case_when(
-      `Country Name` %in% low ~ "Low",
-      `Country Name` %in% medium ~ "Medium",
-      `Country Name` %in% high ~ "High",
-      `Country Name` %in% very_high ~ "Very High"
-    )
-  )
-
-# Find the last year for labeling
-label_data <- selected_countries %>%
-  group_by(`Country Name`, HDI_Group) %>%
-  filter(Year == max(Year))
-
-# Plot
-ggplot(selected_countries, aes(x = Year, y = LifeExpectancy, color = `Country Name`, group = `Country Name`)) +
-  geom_line(size = 0.5) +
-  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
-  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
-  labs(
-    title = "Life Expectancy Over Time by HDI Group",
-    subtitle = "Selected Countries",
-    x = "Year",
-    y = "Life Expectancy",
-    color = "Country"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    plot.title = element_text(face = "bold", size = 18),
-    plot.subtitle = element_text(size = 12, color = "gray40"),
-    axis.title = element_text(face = "bold"),
-    axis.text = element_text(color = "gray30"),
-    legend.position = "none",  # Remove legend as labels are on the plot
-    panel.grid.minor = element_blank()
-  )
-
-```
-
-
-```{r}
-# Ensure data is ordered by Country and Year
-tidy_data <- tidy_data %>% arrange(`Country Name`, Year)
-
-# Function to create interactive plot for a group of countries
-create_interactive_plot <- function(data, group, title) {
-  filtered_data <- data %>% filter(`Country Name` %in% group)
-
-  plot <- ggplot(filtered_data, aes(
-    x = Year, y = LifeExpectancy,
-    color = `Country Name`,  # Use country names for distinct colors
-    group = `Country Name`,  # Ensure proper grouping for lines
-    text = paste("Country: ", `Country Name`, "<br>",
-                 "Year: ", Year, "<br>",
-                 "Life Expectancy: ", round(LifeExpectancy, 2))
-  )) +
-    geom_line(size = 0.5, alpha = 0.8) +  # Ensure proper line plotting
-    theme_minimal() +
-    scale_color_viridis_d() +  # Use discrete viridis colors for countries
-    labs(
-      title = title,
-      x = "Year",
-      y = "Life Expectancy (Years)"
-    )
-
-  ggplotly(plot, tooltip = "text")
-}
-
-# Create and print interactive plots for each group
-interactive_low <- create_interactive_plot(
-  tidy_data, low, "Life Expectancy Over Time in Countries with Low HDI Scores"
-)
-interactive_low
-
-interactive_high <- create_interactive_plot(
-  tidy_data, high, "Life Expectancy Over Time in Countries with High HDI Scores"
-)
-interactive_high
-
-interactive_medium <- create_interactive_plot(
-  tidy_data, medium, "Life Expectancy Over Time in Countries with Medium HDI Scores"
-)
-interactive_medium
-
-interactive_very_high<- create_interactive_plot(
-  tidy_data, very_high, "Life Expectancy Over Time in Countries with Very High HDI Scores"
-)
-interactive_very_high
-```
+###3. Expected Years of Schooling
 
 ```{r}
 # Load necessary libraries
@@ -289,7 +156,6 @@ head(expected_years_of_schooling_raw)
 expected_years_of_schooling <- expected_years_of_schooling_raw[,-c(1,2,4)]
 head(expected_years_of_schooling)
 ```
-
 ```{r}
 
 fill_na_with_previous <- function(x) {
@@ -314,59 +180,7 @@ head(expected_years_of_schooling_total)
 
 ```
 
-```{r}
-ggplot(expected_years_of_schooling_total, aes(x = Year, y = Expected_Schooling, color = Expected_Schooling, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-```
-```{r}
-# Filter data for the selected countries in each group
-selected_countries <- expected_years_of_schooling_total %>%
-  filter(
-    `Country Name` %in% low | 
-    `Country Name` %in% medium | 
-    `Country Name` %in% high | 
-    `Country Name` %in% very_high
-  ) %>%
-  mutate(
-    HDI_Group = case_when(
-      `Country Name` %in% low ~ "Low",
-      `Country Name` %in% medium ~ "Medium",
-      `Country Name` %in% high ~ "High",
-      `Country Name` %in% very_high ~ "Very High"
-    )
-  )
-
-# Find the last year for labeling
-label_data <- selected_countries %>%
-  group_by(`Country Name`, HDI_Group) %>%
-  filter(Year == max(Year))
-
-# Plot
-ggplot(selected_countries, aes(x = Year, y = Expected_Schooling, color = `Country Name`, group = `Country Name`)) +
-  geom_line(size = 0.5) +
-  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
-  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
-  labs(
-    title = "Expected Years of Schooling Over Time by HDI Group",
-    subtitle = "Selected Countries",
-    x = "Year",
-    y = "Average Years of Schooling",
-    color = "Country"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    plot.title = element_text(face = "bold", size = 18),
-    plot.subtitle = element_text(size = 12, color = "gray40"),
-    axis.title = element_text(face = "bold"),
-    axis.text = element_text(color = "gray30"),
-    legend.position = "none",  # Remove legend as labels are on the plot
-    panel.grid.minor = element_blank()
-  )
-
-
-```
+###4. GNI per Capita
 
 ```{r}
 # Define the World Bank API URL
@@ -428,65 +242,7 @@ head(gni_data_long)
 data.table(gni_data_long)
 ```
 
-```{r}
-library(ggplot2)
-library(RColorBrewer)
-library(dplyr)
-library(ggrepel)
-
-# Define color palettes for each group
-colors_very_high <- brewer.pal(5, "Reds")      # Reds for very high
-colors_high <- brewer.pal(5, "Blues")          # Blues for high
-colors_medium <- brewer.pal(5, "Greens")       # Greens for medium
-colors_low <- brewer.pal(5, "Purples")         # Purples for low
-
-# Assign colors to countries based on their group
-country_colors <- c(
-  setNames(colors_low, low),                   # Map Low group to Purples
-  setNames(colors_medium, medium),             # Map Medium group to Greens
-  setNames(colors_high, high),                 # Map High group to Blues
-  setNames(colors_very_high, very_high)        # Map Very High group to Reds
-)
-
-# Add Group column to gni_data_long based on existing vectors
-gni_data_long <- gni_data_long %>%
-  mutate(
-    Group = case_when(
-      `Country Name` %in% low ~ "Low",
-      `Country Name` %in% medium ~ "Medium",
-      `Country Name` %in% high ~ "High",
-      `Country Name` %in% very_high ~ "Very High",
-      TRUE ~ NA_character_  # Explicitly set NA for unmatched countries
-    )
-  ) %>%
-  filter(!is.na(Group))  # Remove rows with NA in Group
-
-# Find the last year for each country to position labels
-label_data <- gni_data_long %>%
-  group_by(`Country Name`, Group) %>%
-  filter(Year == max(Year))
-
-# Line plot comparing all groups with specific colors
-ggplot(gni_data_long, aes(x = Year, y = GNI_Per_Capita, color = `Country Name`, group = `Country Name`)) +
-  geom_line(size = 0.8) +
-  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
-  facet_wrap(~ Group, scales = "free_y") +  # Separate facets for each group
-  scale_color_manual(values = country_colors) +  # Apply custom colors
-  theme_minimal() +
-  labs(
-    title = "GNI Per Capita Over Time by Group",
-    x = "Year",
-    y = "GNI Per Capita (USD)"
-  ) +
-  theme(
-    legend.position = "none",  # Remove legend
-    plot.title = element_text(face = "bold", size = 16),
-    axis.title = element_text(face = "bold"),
-    axis.text = element_text(color = "gray30")
-  )
-
-```
-
+###5. Mean Years of Schooling
 ```{r}
 # Load necessary library
 library(readxl)
@@ -510,12 +266,7 @@ mean_schooling <- mean_schooling_raw[,-2]
 head(mean_schooling)
 ```
 
-```{r}
-ggplot(mean_schooling, aes(x = Year, y = MeanYearsOfSchooling, color = MeanYearsOfSchooling, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-```
+###6. Democracy
 
 ```{r}
 # Define the URL
@@ -536,33 +287,7 @@ democracy <- democracy_raw[,-2]
 head(democracy)
 ```
 
-```{r}
-# Summarize the data
-aggregated_data <- democracy %>%
-  group_by(Year, Political.regime) %>%
-  summarize(Count = n(), .groups = "drop")
-
-# Create the line graph
-ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime), group = Political.regime)) +
-  geom_line(size = 0.5) +
-  geom_point(size = 0.6) +  # Optional: Add points for emphasis
-  scale_color_viridis_d() +
-  theme_minimal(base_size = 14) +
-  labs(
-    title = "Number of Countries by Political Regime Over Time",
-    x = "Year",
-    y = "Number of Countries",
-    color = "Political Regime"
-  ) +
-  theme(
-    plot.title = element_text(face = "bold", size = 16),
-    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for readability
-    legend.position = "right"  # Move the legend to the side
-  )
-
-```
-
-
+###7. Gender Inequality
 ```{r}
 # Define the URL
 url_GI <- "https://ourworldindata.org/grapher/gender-inequality-index-from-the-human-development-report.csv?v=1&csvType=full&useColumnShortNames=false"
@@ -582,13 +307,7 @@ gender_inequality <- gender_inequality_raw[,-2]
 head(gender_inequality)
 ```
 
-```{r}
-ggplot(gender_inequality, aes(x = Year, y = Gender.Inequality, color = Gender.Inequality, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-
-```
+###8. Population
 
 ```{r}
 url_pop <- "https://ourworldindata.org/grapher/population.csv?v=1&csvType=full&useColumnShortNames=true"
@@ -604,12 +323,7 @@ population <- population_raw[,-2] %>% filter(Year > 1960)
 head(population)
 ```
 
-```{r}
-ggplot(population, aes(x = Year, y = Population, color = Population, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-```
+###9. Foreign Direct Investment
 
 ```{r}
 url_fdi <- "https://ourworldindata.org/grapher/foreign-direct-investment-net-inflows-as-share-of-gdp.csv?v=1&csvType=full&useColumnShortNames=false"
@@ -625,13 +339,7 @@ fdi <- fdi_raw[,-2]
 head(fdi)
 ```
 
-```{r}
-ggplot(fdi, aes(x = Year, y = FDI.inflow, color = FDI.inflow, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-```
-
+###10. Tax Revenues 
 
 ```{r}
 url_tax <- "https://ourworldindata.org/grapher/tax-revenues-as-a-share-of-gdp-unu-wider.csv?v=1&csvType=full&useColumnShortNames=false"
@@ -647,13 +355,7 @@ tax_revenues <- tax_revenues_raw[,-2]
 head(tax_revenues)
 ```
 
-```{r}
-ggplot(tax_revenues, aes(x = Year, y = Tax_Share, color = Tax_Share, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-```
-
+###11. Electricity Generation
 ```{r}
 url_EG <- "https://ourworldindata.org/grapher/per-capita-electricity-generation.csv?v=1&csvType=full&useColumnShortNames=true"
 
@@ -668,12 +370,7 @@ electricity_generation <- electricity_generation_raw[,-2]
 head(electricity_generation)
 ```
 
-```{r}
-ggplot(electricity_generation, aes(x = Year, y = Electricity_Generation, color = Electricity_Generation, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-```
+###12. GDP per Capita
 ```{r}
 url_GDP <- "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?v=1&csvType=full&useColumnShortNames=true"
 
@@ -687,18 +384,10 @@ colnames(GDPpercapita_raw) <- c("Country Name", "Code", "Year", "GDP_per_capita"
 GDPpercapita <- GDPpercapita_raw[,-2]
 head(GDPpercapita)
 ```
-```{r}
-ggplot(GDPpercapita, aes(x = Year, y = GDP_per_capita, color = GDP_per_capita, group = `Country Name`)) +
-  geom_line(alpha = 0.7) +
-  scale_color_viridis_c() +
-  theme_minimal()
-```
 
 *Merging All Data
 
 ```{r}
-library(data.table)
-
 # Ensure all datasets are data.tables
 tables <- list(
   electricity_generation,
@@ -715,11 +404,9 @@ tables <- list(
   GDPpercapita
 )
 
-# Merge all tables by Country Name and Year
-
 merged_data <- Reduce(function(x, y) merge(x, y, by = c("Country Name", "Year"), all = TRUE), tables)
 
-merged_data <- subset(merged_data, Year >= 1970)
+merged_data <- subset(merged_data, Year >= 1970 & Year <= 2023)
 
 str(merged_data)
 
@@ -908,15 +595,333 @@ str(new_data)
 ```
 
 ```{r}
+hdicode_group <- hdi_long[, .(
+  Number_of_Countries = uniqueN(`Country Name`) 
+), by = hdicode]
+
+# View the grouped dataset
+print(hdicode_group)
+
+set.seed(213276)
+low <- hdi_long[hdicode == "Low", sample(unique(`Country Name`), 5)]
+
+set.seed(213276)
+medium <- hdi_long[hdicode == "Medium", sample(unique(`Country Name`), 5)]
+
+set.seed(213276)
+high <- hdi_long[hdicode == "High", sample(unique(`Country Name`), 5)]
+
+set.seed(213276)
+very_high <- hdi_long[hdicode == "Very High", sample(unique(`Country Name`), 5)]
+
+# Subset new_data to include only the selected countries
+selected_countries <- new_data %>%
+  filter(`Country Name` %in% c(low, medium, high, very_high))
+
+# Add an HDI category column for plotting
+selected_countries <- selected_countries %>%
+  mutate(
+    HDI_Group = case_when(
+      `Country Name` %in% low ~ "Low",
+      `Country Name` %in% medium ~ "Medium",
+      `Country Name` %in% high ~ "High",
+      `Country Name` %in% very_high ~ "Very High"
+    )
+  )
+```
+Life Expectancy Plot
+```{r}
+ggplot(new_data, aes(x = Year, y = LifeExpectancy, color = LifeExpectancy, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+
+```{r}
+library(ggplot2)
+library(ggrepel)
+
+label_data <- selected_countries %>%
+  group_by(`Country Name`, HDI_Group) %>%
+  filter(Year == 2022)
+
+# Plot
+ggplot(selected_countries, aes(x = Year, y = LifeExpectancy, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(
+    data = label_data,
+    aes(label = `Country Name`),
+    show.legend = FALSE,
+    size = 2
+  ) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # Separate facets for each group
+  labs(
+    title = "Life Expectancy Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Life Expectancy"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none",  # Remove legend
+    panel.grid.minor = element_blank()
+  )
+
+```
+
+
+```{r}
+# Ensure data is ordered by Country and Year
+new_data <- new_data %>% arrange(`Country Name`, Year)
+
+# Function to create interactive plot for a group of countries
+create_interactive_plot <- function(data, group, title) {
+  filtered_data <- data %>% filter(`Country Name` %in% group)
+
+  plot <- ggplot(filtered_data, aes(
+    x = Year, y = LifeExpectancy,
+    color = `Country Name`,  # Use country names for distinct colors
+    group = `Country Name`,  # Ensure proper grouping for lines
+    text = paste("Country: ", `Country Name`, "<br>",
+                 "Year: ", Year, "<br>",
+                 "Life Expectancy: ", round(LifeExpectancy, 2))
+  )) +
+    geom_line(size = 0.5, alpha = 0.8) +  # Ensure proper line plotting
+    theme_minimal() +
+    scale_color_viridis_d() +  # Use discrete viridis colors for countries
+    labs(
+      title = title,
+      x = "Year",
+      y = "Life Expectancy (Years)"
+    )
+
+  ggplotly(plot, tooltip = "text")
+}
+
+# Create and print interactive plots for each group
+interactive_low <- create_interactive_plot(
+  new_data, low, "Life Expectancy Over Time in Countries with Low HDI Scores"
+)
+interactive_low
+
+interactive_high <- create_interactive_plot(
+  new_data, high, "Life Expectancy Over Time in Countries with High HDI Scores"
+)
+interactive_high
+
+interactive_medium <- create_interactive_plot(
+  new_data, medium, "Life Expectancy Over Time in Countries with Medium HDI Scores"
+)
+interactive_medium
+
+interactive_very_high<- create_interactive_plot(
+  new_data, very_high, "Life Expectancy Over Time in Countries with Very High HDI Scores"
+)
+interactive_very_high
+```
+
+
+Expected Years of Schooling Plot
+```{r}
+ggplot(new_data, aes(x = Year, y = Expected_Schooling, color = Expected_Schooling, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+```{r}
+ggplot(selected_countries, aes(x = Year, y = Expected_Schooling, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.5) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = TRUE) +
+  facet_wrap(~ HDI_Group, ncol = 2, scales = "fixed") +  # 2x2 layout
+  labs(
+    title = "Expected Years of Schooling Over Time by HDI Group",
+    subtitle = "Selected Countries",
+    x = "Year",
+    y = "Expected Years of Schooling",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30"),
+    legend.position = "none",  # Remove legend as labels are on the plot
+    panel.grid.minor = element_blank()
+  )
+```
+
+GNI plots
+```{r}
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+library(ggrepel)
+
+# Define color palettes for each group
+colors_very_high <- brewer.pal(5, "Reds")      # Reds for very high
+colors_high <- brewer.pal(5, "Blues")          # Blues for high
+colors_medium <- brewer.pal(5, "Greens")       # Greens for medium
+colors_low <- brewer.pal(5, "Purples")         # Purples for low
+
+# Assign colors to countries based on their group
+country_colors <- c(
+  setNames(colors_low, low),                   # Map Low group to Purples
+  setNames(colors_medium, medium),             # Map Medium group to Greens
+  setNames(colors_high, high),                 # Map High group to Blues
+  setNames(colors_very_high, very_high)        # Map Very High group to Reds
+)
+
+# Add Group column to gni_data_long based on existing vectors
+gni_data_long <- gni_data_long %>%
+  mutate(
+    Group = case_when(
+      `Country Name` %in% low ~ "Low",
+      `Country Name` %in% medium ~ "Medium",
+      `Country Name` %in% high ~ "High",
+      `Country Name` %in% very_high ~ "Very High",
+      TRUE ~ NA_character_  # Explicitly set NA for unmatched countries
+    )
+  ) %>%
+  filter(!is.na(Group))  # Remove rows with NA in Group
+
+# Find the last year for each country to position labels
+label_data <- gni_data_long %>%
+  group_by(`Country Name`, Group) %>%
+  filter(Year == max(Year))
+
+# Line plot comparing all groups with specific colors
+ggplot(selected_countries, aes(x = Year, y = GNI_Per_Capita, color = `Country Name`, group = `Country Name`)) +
+  geom_line(size = 0.8) +
+  geom_text_repel(data = label_data, aes(label = `Country Name`), hjust = -0.2, show.legend = FALSE) +
+  facet_wrap(~ Group, scales = "free_y") +  # Separate facets for each group
+  scale_color_manual(values = country_colors) +  # Apply custom colors
+  theme_minimal() +
+  labs(
+    title = "GNI Per Capita Over Time by Group",
+    x = "Year",
+    y = "GNI Per Capita (USD)"
+  ) +
+  theme(
+    legend.position = "none",  # Remove legend
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "gray30")
+  )
+
+```
+
+Mean Schooling Plot
+```{r}
+ggplot(mean_schooling, aes(x = Year, y = MeanYearsOfSchooling, color = MeanYearsOfSchooling, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+democracy plot
+
+```{r}
+# Summarize the data
+aggregated_data <- democracy %>%
+  group_by(Year, Political.regime) %>%
+  summarize(Count = n(), .groups = "drop")
+
+# Create the line graph
+ggplot(aggregated_data, aes(x = Year, y = Count, color = factor(Political.regime), group = Political.regime)) +
+  geom_line(size = 0.5) +
+  geom_point(size = 0.2) +  # Optional: Add points for emphasis
+  scale_color_viridis_d() +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Number of Countries by Political Regime Over Time",
+    x = "Year",
+    y = "Number of Countries",
+    color = "Political Regime"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for readability
+    legend.position = "right"  # Move the legend to the side
+  )
+
+```
+
+
+gender inequality
+
+```{r}
+ggplot(gender_inequality, aes(x = Year, y = Gender.Inequality, color = Gender.Inequality, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+
+```
+
+population
+
+```{r}
+ggplot(population, aes(x = Year, y = Population, color = Population, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+
+fdi
+```{r}
+ggplot(fdi, aes(x = Year, y = FDI.inflow, color = FDI.inflow, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+
+gdp
+```{r}
+ggplot(new_data, aes(x = Year, y = GDP_per_capita, color = GDP_per_capita, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+tax
+```{r}
+ggplot(tax_revenues, aes(x = Year, y = Tax_Share, color = Tax_Share, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+electricity
+
+```{r}
+ggplot(electricity_generation, aes(x = Year, y = Electricity_Generation, color = Electricity_Generation, group = `Country Name`)) +
+  geom_line(alpha = 0.7) +
+  scale_color_viridis_c() +
+  theme_minimal()
+```
+
+
+
+
+```{r}
 
 necessary_columns <- c("Country Name", "Year", "LifeExpectancy", "GNI_Per_Capita", 
                        "MeanYearsOfSchooling", "Expected_Schooling", "HDI")
 
 # Select only the gerekli columns from merged_data
-model_data <- merged_data %>%
+model_data <- new_data %>%
   select(all_of(necessary_columns))
 
 model <- lm(HDI  ~ LifeExpectancy + GNI_Per_Capita + MeanYearsOfSchooling + Expected_Schooling, data=model_data )
+
 summary(model)
 
 # Specify the columns to check
