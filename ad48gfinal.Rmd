@@ -4,7 +4,7 @@ author: "Esen Duman"
 date: "2025-01-09"
 output: html_document
 ---
-x
+
 Install before rendering:
 
 install.packages(c("httr", "zoo", "readr", "here", "renv", "data.table", "tidyverse", "ggplot2", "plotly", "dplyr", "stringr", "readxl","visNetwork", "caret" ))
@@ -126,6 +126,8 @@ head(tidy_data)
 
 ###3. Expected Years of Schooling
 
+The dataset for expected years of schooling is sourced from the World Bank's gender data portal. The data is downloaded as a ZIP file and extracted into a local directory. We loaded the extracted CSV file into R and removed unnecessary columns to focus on the relevant data. There were a lot of missing values in the data. So, by using the zoo package, we filled the missing values with the previous non-missing value for consistency. Finally, we filtered the rows where the schooling data is categorized as "total", and renamed the "Value" column to Expected_Schooling for better clarity and consistency among our datasets.
+
 ```{r}
 # Load necessary libraries
 library(httr)  # For downloading files
@@ -181,6 +183,8 @@ head(expected_years_of_schooling_total)
 ```
 
 ###4. GNI per Capita
+
+The Gross National Income (GNI) per capita data is obtained through the World Bank API. We downloaded the data as a CSV file within a ZIP archive. After extraction, we loaded the data into R using fread(). Then, we cleaned and standardized column. We reshaped the dataset into a long format using the melt function, creating a structure where each row represents a country, a year, and its corresponding GNI per capita value to allow for easier integration with other datasets.
 
 ```{r}
 # Define the World Bank API URL
@@ -243,6 +247,9 @@ data.table(gni_data_long)
 ```
 
 ###5. Mean Years of Schooling
+
+The mean years of schooling dataset is downloaded as a CSV file from Our World in Data. After loading the file into R, we again removed the unnecessary columns to retain only the country name, year, and schooling data.
+
 ```{r}
 # Load necessary library
 library(readxl)
@@ -268,6 +275,8 @@ head(mean_schooling)
 
 ###6. Democracy
 
+The political regime dataset, indicating the type of governance in countries over time, is acquired also from Our World in Data. The file is downloaded as a CSV and loaded into R. We removed unnecessary columns to only leave the country name, year, and political regime.
+
 ```{r}
 # Define the URL
 url_D <- "https://ourworldindata.org/grapher/political-regime.csv?v=1&csvType=full&useColumnShortNames=false"
@@ -288,6 +297,9 @@ head(democracy)
 ```
 
 ###7. Gender Inequality
+
+The gender inequality index dataset is sourced from the UN Human Development Report through Our World in Data. After downloading the CSV file, the data is loaded into R. Similar to other datasets, irrelevant columns are removed, leaving the country name, year, and gender inequality values.
+
 ```{r}
 # Define the URL
 url_GI <- "https://ourworldindata.org/grapher/gender-inequality-index-from-the-human-development-report.csv?v=1&csvType=full&useColumnShortNames=false"
@@ -309,6 +321,8 @@ head(gender_inequality)
 
 ###8. Population
 
+The population dataset, reflecting the population size of countries over time, is acquired from Our World in Data. The CSV file is downloaded, loaded into R, and cleaned to exclude unnecessary columns.
+
 ```{r}
 url_pop <- "https://ourworldindata.org/grapher/population.csv?v=1&csvType=full&useColumnShortNames=true"
 
@@ -324,6 +338,8 @@ head(population)
 ```
 
 ###9. Foreign Direct Investment
+
+The foreign direct investment (FDI) dataset, showing net inflows as a percentage of GDP, is obtained from Our World in Data. The CSV file is downloaded and loaded into R. Again, we dropped irrelevant columns and kept only the essential country name, year, and FDI values. This dataset highlights the economic integration of countries through international investments.
 
 ```{r}
 url_fdi <- "https://ourworldindata.org/grapher/foreign-direct-investment-net-inflows-as-share-of-gdp.csv?v=1&csvType=full&useColumnShortNames=false"
